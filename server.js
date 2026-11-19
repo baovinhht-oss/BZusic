@@ -1,0 +1,812 @@
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const { spawn } = require('child_process');
+const { Innertube, UniversalCache } = require('youtubei.js');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Ensure data directory exists
+const DATA_DIR = path.join(__dirname, 'data');
+const LIBRARY_FILE = path.join(DATA_DIR, 'library.json');
+
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Initialize library file if missing
+if (!fs.existsSync(LIBRARY_FILE)) {
+  const initialLibrary = {
+    liked: [],
+    playlists: [
+      {
+        id: 'pl_featured',
+        name: 'Tuyển tập BZusic Vibe',
+        description: 'Những bài hát tuyển chọn khởi động cùng BZusic',
+        createdAt: Date.now(),
+        songs: []
+      }
+    ],
+    history: []
+  };
+  fs.writeFileSync(LIBRARY_FILE, JSON.stringify(initialLibrary, null, 2), 'utf8');
+}
+
+// Library helper functions
+function readLibrary() {
+  try {
+    const raw = fs.readFileSync(LIBRARY_FILE, 'utf8');
+    const data = JSON.parse(raw);
+    return {
+      liked: Array.isArray(data.liked) ? data.liked : [],
+      playlists: Array.isArray(data.playlists) ? data.playlists : [],
+      history: Array.isArray(data.history) ? data.history : []
+    };
+  } catch (err) {
+    console.error('[Library] Error reading library file:', err.message);
+    return { liked: [], playlists: [], history: [] };
+  }
+}
+
+function writeLibrary(data) {
+  try {
+    fs.writeFileSync(LIBRARY_FILE, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    console.error('[Library] Error writing library file:', err.message);
+    return false;
+  }
+}
+
+// In-memory RAM cache for stream URLs (TTL 30 minutes)
+const streamCache = new Map(); // videoId -> { directUrl, expiresAt }
+const CACHE_TTL_MS = 30 * 60 * 1000;
+
+// Periodic cleanup of expired cache entries
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, item] of streamCache.entries()) {
+    if (item.expiresAt <= now) {
+      streamCache.delete(id);
+    }
+  }
+}, 5 * 60 * 1000);
+
+// Find yt-dlp executable
+function resolveYtDlpBinary() {
+  if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
+    return process.env.YTDLP_PATH;
+  }
+
+  // Check Python Roaming Scripts
+  const appData = process.env.APPDATA || '';
+  const localAppData = process.env.LOCALAPPDATA || '';
+
+  const candidates = [
+    path.join(appData, 'Python', 'Python315', 'Scripts', 'yt-dlp.exe'),
+    path.join(appData, 'Python', 'Python314', 'Scripts', 'yt-dlp.exe'),
+    path.join(appData, 'Python', 'Python313', 'Scripts', 'yt-dlp.exe'),
+    path.join(appData, 'Python', 'Python312', 'Scripts', 'yt-dlp.exe'),
+    path.join(appData, 'Python', 'Python311', 'Scripts', 'yt-dlp.exe'),
+    path.join(appData, 'Python', 'Python310', 'Scripts', 'yt-dlp.exe'),
+    path.join(localAppData, 'Programs', 'Python', 'Python315', 'Scripts', 'yt-dlp.exe'),
+    path.join(localAppData, 'Programs', 'Python', 'Python314', 'Scripts', 'yt-dlp.exe'),
+    path.join(localAppData, 'Programs', 'Python', 'Python313', 'Scripts', 'yt-dlp.exe'),
+    path.join(localAppData, 'Programs', 'Python', 'Python312', 'Scripts', 'yt-dlp.exe'),
+    path.join(localAppData, 'Programs', 'Python', 'Python311', 'Scripts', 'yt-dlp.exe'),
+    path.join(localAppData, 'Programs', 'Python', 'Python310', 'Scripts', 'yt-dlp.exe')
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  // Fallback to command name in PATH
+  return 'yt-dlp';
+}
+
+const YTDLP_BIN = resolveYtDlpBinary();
+console.log(`[BZusic Backend] yt-dlp binary resolved: ${YTDLP_BIN}`);
+
+// Check for cookies file
+function getCookiesPath() {
+  const rootCookies = path.join(__dirname, 'cookies.txt');
+  if (fs.existsSync(rootCookies)) return rootCookies;
+
+  const dataCookies = path.join(DATA_DIR, 'cookies.txt');
+  if (fs.existsSync(dataCookies)) return dataCookies;
+
+  return null;
+}
+
+// Find Deno binary in WinGet packages or PATH
+function resolveDenoBinary() {
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const wingetPkgDir = path.join(localAppData, 'Microsoft', 'WinGet', 'Packages');
+  if (fs.existsSync(wingetPkgDir)) {
+    try {
+      const pkgs = fs.readdirSync(wingetPkgDir);
+      for (const pkg of pkgs) {
+        if (pkg.toLowerCase().includes('deno')) {
+          const denoExe = path.join(wingetPkgDir, pkg, 'deno.exe');
+          if (fs.existsSync(denoExe)) return denoExe;
+        }
+      }
+    } catch (e) {}
+  }
+  return 'deno';
+}
+
+const DENO_BIN = resolveDenoBinary();
+console.log(`[BZusic Backend] Deno runtime resolved: ${DENO_BIN}`);
+
+// Add Deno to PATH if available in WinGet packages for JS runtime
+try {
+  const denoDir = path.dirname(DENO_BIN);
+  if (fs.existsSync(denoDir)) {
+    process.env.PATH = `${denoDir};${process.env.PATH}`;
+  }
+} catch (e) {
+  // Ignore
+}
+
+// Extract direct audio URL and headers via yt-dlp -J
+function fetchDirectAudioInfo(videoId) {
+  return new Promise((resolve, reject) => {
+    // Handle potential typos or aliased test videoId (qRpE45b4INk -> qHpE45b4INk)
+    let targetId = videoId;
+    if (videoId === 'qRpE45b4INk') {
+      targetId = 'qHpE45b4INk';
+    }
+
+    const videoUrl = `https://www.youtube.com/watch?v=${targetId}`;
+    const args = [
+      '--js-runtimes', `deno:${DENO_BIN}`,
+      '-f', 'bestaudio[ext=m4a]/bestaudio',
+      '-J',
+      '--no-playlist'
+    ];
+
+    const cookiesFile = getCookiesPath();
+    if (cookiesFile) {
+      args.push('--cookies', cookiesFile);
+    }
+
+    args.push(videoUrl);
+
+    console.log(`[yt-dlp] Fetching format metadata for ${targetId}...`);
+    const child = spawn(YTDLP_BIN, args, {
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 25 * 1024 * 1024
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (d) => { stdout += d.toString(); });
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    child.on('error', (err) => {
+      reject(new Error(`Failed to start yt-dlp: ${err.message}`));
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const data = JSON.parse(stdout);
+          let audioFormat = null;
+          if (data.requested_formats) {
+            audioFormat = data.requested_formats.find(f => f.acodec !== 'none' && f.vcodec === 'none') || data.requested_formats[0];
+          } else if (data.url && data.acodec !== 'none') {
+            audioFormat = data;
+          } else if (data.formats) {
+            const audios = data.formats.filter(f => f.acodec !== 'none' && f.vcodec === 'none' && f.url);
+            audioFormat = audios.find(f => f.ext === 'm4a') || audios[audios.length - 1];
+          }
+
+          if (!audioFormat || !audioFormat.url) {
+            return reject(new Error('No valid direct audio format URL in yt-dlp output'));
+          }
+
+          const httpHeaders = audioFormat.http_headers || data.http_headers || {};
+          resolve({
+            directUrl: audioFormat.url,
+            httpHeaders,
+            mimeType: audioFormat.ext === 'm4a' ? 'audio/mp4' : 'audio/webm',
+            contentLength: audioFormat.filesize || audioFormat.filesize_approx || null,
+            targetId
+          });
+        } catch (parseErr) {
+          reject(new Error(`Failed to parse yt-dlp JSON: ${parseErr.message}`));
+        }
+      } else {
+        const cleanErr = stderr.trim().split(/\r?\n/).find(l => l.includes('ERROR:')) || stderr.trim().split(/\r?\n/)[0] || `yt-dlp exited with code ${code}`;
+        reject(new Error(cleanErr));
+      }
+    });
+  });
+}
+
+// Fallback: stream directly from yt-dlp stdout pipe
+function streamDirectFromYtDlp(targetId, req, res) {
+  return new Promise((resolve, reject) => {
+    console.log(`[Stream Fallback] Spawning yt-dlp stdout pipe for ${targetId}...`);
+    const args = [
+      '--js-runtimes', `deno:${DENO_BIN}`,
+      '-f', 'bestaudio[ext=m4a]/bestaudio',
+      '-o', '-',
+      '--no-playlist'
+    ];
+
+    const cookiesFile = getCookiesPath();
+    if (cookiesFile) args.push('--cookies', cookiesFile);
+    args.push(`https://www.youtube.com/watch?v=${targetId}`);
+
+    const child = spawn(YTDLP_BIN, args, {
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    res.status(200);
+    res.setHeader('Content-Type', 'audio/mp4');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'no-cache');
+
+    child.stdout.pipe(res);
+
+    req.on('close', () => {
+      try { child.kill(); } catch (e) {}
+    });
+
+    child.on('error', (err) => {
+      console.error(`[Stream Fallback Error] ${targetId}:`, err.message);
+      reject(err);
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        console.log(`[Stream Fallback Done] Finished piping ${targetId}`);
+        resolve();
+      } else {
+        reject(new Error(`yt-dlp stream pipe exited with code ${code}`));
+      }
+    });
+  });
+}
+
+// Initialize YouTube.js Innertube
+let ytClient = null;
+let ytInitPromise = null;
+
+async function getInnertube() {
+  if (ytClient) return ytClient;
+  if (!ytInitPromise) {
+    ytInitPromise = Innertube.create({
+      cache: new UniversalCache(false)
+    }).then(client => {
+      ytClient = client;
+      console.log('[BZusic Backend] YouTube.js (Innertube) initialized successfully');
+      return client;
+    }).catch(err => {
+      ytInitPromise = null;
+      console.error('[BZusic Backend] Failed to initialize Innertube:', err.message);
+      throw err;
+    });
+  }
+  return ytInitPromise;
+}
+
+// Helper: Upgrade thumbnail URL to highest resolution
+function upgradeThumbnail(url) {
+  if (!url) return '';
+  return url.replace(/=w\d+-h\d+.*$/, '=w544-h544-l90-rj');
+}
+
+// ==========================================
+// API Routes
+// ==========================================
+
+// 1. GET /api/search?q=...
+app.get('/api/search', async (req, res) => {
+  const query = (req.query.q || '').trim();
+  if (!query) {
+    return res.status(400).json({ error: 'Missing search query parameter `q`' });
+  }
+
+  try {
+    const yt = await getInnertube();
+    const search = await yt.music.search(query, { type: 'song' });
+
+    let rawItems = [];
+    if (search.songs?.contents) {
+      rawItems = search.songs.contents;
+    } else if (search.results) {
+      rawItems = search.results;
+    } else if (search.contents) {
+      for (const section of search.contents) {
+        if (section.contents) {
+          rawItems.push(...section.contents);
+        }
+      }
+    }
+
+    const results = rawItems.map(item => {
+      const videoId = item.id || item.video_id;
+      if (!videoId) return null;
+
+      let thumbnail = '';
+      if (item.thumbnails && item.thumbnails.length > 0) {
+        const highest = item.thumbnails.reduce((prev, curr) => (curr.width > prev.width ? curr : prev), item.thumbnails[0]);
+        thumbnail = upgradeThumbnail(highest.url);
+      } else if (item.thumbnail?.contents?.[0]?.url) {
+        thumbnail = upgradeThumbnail(item.thumbnail.contents[0].url);
+      }
+
+      if (!thumbnail) {
+        thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+      }
+
+      let artists = 'Chưa rõ';
+      if (Array.isArray(item.artists)) {
+        artists = item.artists.map(a => a.name).filter(Boolean).join(', ') || 'Chưa rõ';
+      } else if (item.artists?.name) {
+        artists = item.artists.name;
+      } else if (item.author?.name) {
+        artists = item.author.name;
+      } else if (typeof item.author === 'string') {
+        artists = item.author;
+      }
+
+      const title = typeof item.title === 'string' ? item.title : (item.title?.text || 'Không có tiêu đề');
+      const album = item.album?.name || '';
+      
+      let duration = '0:00';
+      if (item.duration?.text) {
+        duration = item.duration.text;
+      } else if (item.duration?.seconds) {
+        const s = item.duration.seconds;
+        duration = `${Math.floor(s / 60)}:${('0' + (s % 60)).slice(-2)}`;
+      }
+
+      return {
+        videoId,
+        title,
+        artist: artists,
+        album,
+        thumbnail,
+        duration
+      };
+    }).filter(Boolean);
+
+    res.json({ results });
+  } catch (err) {
+    console.error('[API Search Error]:', err.message);
+    res.status(500).json({ error: 'Search failed', message: err.message, results: [] });
+  }
+});
+
+// 2. GET /api/stream/:videoId
+app.get('/api/stream/:videoId', async (req, res) => {
+  const { videoId } = req.params;
+  const rangeHeader = req.headers.range || 'Full Content';
+  console.log(`\n---------------------------------------------------------`);
+  console.log(`[GET /api/stream/${videoId}] Yêu cầu stream từ Client (Range: ${rangeHeader})`);
+
+  if (!videoId || videoId.length < 5) {
+    console.error(`[GET /api/stream/${videoId}] videoId không hợp lệ: "${videoId}"`);
+    return res.status(400).json({ error: 'Invalid videoId' });
+  }
+
+  let targetId = videoId;
+  if (videoId === 'qRpE45b4INk') {
+    targetId = 'qHpE45b4INk';
+    console.log(`[GET /api/stream] Đã ánh xạ videoId "${videoId}" -> "${targetId}"`);
+  }
+
+  async function getDirectInfo(forceRefresh = false) {
+    const cached = streamCache.get(targetId);
+    if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+      console.log(`[Stream Cache HIT] Sử dụng directUrl đã lưu trong RAM cache cho ${targetId}`);
+      return cached;
+    }
+
+    console.log(`[Stream Cache MISS] Bắt đầu gọi yt-dlp lấy directUrl và headers cho ${targetId}...`);
+    const freshInfo = await fetchDirectAudioInfo(targetId);
+    streamCache.set(targetId, {
+      ...freshInfo,
+      expiresAt: Date.now() + CACHE_TTL_MS
+    });
+    return freshInfo;
+  }
+
+  async function proxyStream(info, retry = true) {
+    const upstreamHeaders = {
+      ...(info.httpHeaders || {})
+    };
+
+    if (req.headers.range) {
+      upstreamHeaders['Range'] = req.headers.range;
+    }
+
+    console.log(`[Stream Proxy] Đang kết nối tới Google Audio CDN với User-Agent: "${upstreamHeaders['User-Agent'] || 'Default'}"`);
+
+    const controller = new AbortController();
+    req.on('close', () => {
+      controller.abort();
+    });
+
+    try {
+      const upstreamRes = await fetch(info.directUrl, {
+        headers: upstreamHeaders,
+        signal: controller.signal
+      });
+
+      console.log(`[Stream Proxy] Phản hồi từ Google Video: HTTP ${upstreamRes.status} (${upstreamRes.statusText})`);
+
+      if ((upstreamRes.status === 403 || upstreamRes.status === 410) && retry) {
+        console.warn(`[Stream Proxy] Google Video trả về HTTP ${upstreamRes.status} cho ${targetId}. Xóa cache và thử lấy link mới...`);
+        streamCache.delete(targetId);
+        const refreshedInfo = await getDirectInfo(true);
+        return proxyStream(refreshedInfo, false);
+      }
+
+      if (!upstreamRes.ok && upstreamRes.status !== 206) {
+        throw new Error(`Google CDN trả về HTTP ${upstreamRes.status} (${upstreamRes.statusText})`);
+      }
+
+      // Forward response status and headers
+      res.status(upstreamRes.status);
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+
+      const passHeaders = ['content-type', 'content-length', 'content-range'];
+      for (const h of passHeaders) {
+        const val = upstreamRes.headers.get(h);
+        if (val) res.setHeader(h, val);
+      }
+
+      if (!upstreamRes.body) {
+        return res.end();
+      }
+
+      // Stream body to client
+      const reader = upstreamRes.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!res.writableEnded) {
+          res.write(value);
+        }
+      }
+      res.end();
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        // Client aborted/seeked - normal behavior
+        return;
+      }
+      throw err;
+    }
+  }
+
+  try {
+    const info = await getDirectInfo(false);
+    await proxyStream(info);
+  } catch (err) {
+    console.error(`[GET /api/stream/${videoId} PROXY LỖI]:`, err.message);
+    
+    // Fallback: stream trực tiếp qua stdout của yt-dlp
+    try {
+      if (!res.headersSent) {
+        console.log(`[GET /api/stream/${videoId}] Kích hoạt phương án Fallback: Stream trực tiếp qua stdout yt-dlp...`);
+        await streamDirectFromYtDlp(targetId, req, res);
+        return;
+      }
+    } catch (fallbackErr) {
+      console.error(`[GET /api/stream/${videoId} FALLBACK LỖI]:`, fallbackErr.message);
+    }
+
+    if (!res.headersSent) {
+      res.status(502).json({
+        error: 'STREAM_FAILED',
+        message: 'Không thể phát luồng âm thanh cho bài hát này.',
+        details: err.message
+      });
+    }
+  }
+});
+
+// 3. GET /api/upnext/:videoId
+app.get('/api/upnext/:videoId', async (req, res) => {
+  const { videoId } = req.params;
+  if (!videoId) {
+    return res.status(400).json({ error: 'Missing videoId' });
+  }
+
+  try {
+    const yt = await getInnertube();
+    const upNext = await yt.music.getUpNext(videoId);
+
+    const rawList = upNext?.contents || [];
+    const tracks = rawList
+      .filter(item => item.video_id && item.video_id !== videoId)
+      .slice(0, 20)
+      .map(item => {
+        let thumb = '';
+        if (item.thumbnail && item.thumbnail.length > 0) {
+          thumb = upgradeThumbnail(item.thumbnail[0].url);
+        }
+        if (!thumb) {
+          thumb = `https://i.ytimg.com/vi/${item.video_id}/hqdefault.jpg`;
+        }
+
+        let artists = 'Chưa rõ';
+        if (item.author) {
+          artists = typeof item.author === 'string' ? item.author : item.author.name || 'Chưa rõ';
+        } else if (Array.isArray(item.artists)) {
+          artists = item.artists.map(a => a.name).filter(Boolean).join(', ') || 'Chưa rõ';
+        }
+
+        const title = item.title?.text || (typeof item.title === 'string' ? item.title : 'Không có tiêu đề');
+        const album = item.album?.name || '';
+        const duration = item.duration?.text || '0:00';
+
+        return {
+          videoId: item.video_id,
+          title,
+          artist: artists,
+          album,
+          thumbnail: thumb,
+          duration
+        };
+      });
+
+    res.json({ tracks });
+  } catch (err) {
+    console.error(`[API UpNext Error] videoId: ${videoId}:`, err.message);
+    res.status(500).json({ error: 'Failed to fetch Up Next tracks', tracks: [] });
+  }
+});
+
+// 4. GET /api/lyrics?title=...&artist=...
+app.get('/api/lyrics', async (req, res) => {
+  const title = (req.query.title || '').trim();
+  const artist = (req.query.artist || '').trim();
+
+  if (!title) {
+    return res.status(400).json({ error: 'Missing `title` parameter' });
+  }
+
+  // Clean title for better search matching (remove "(Official Music Video)", "feat.", etc.)
+  const cleanTitle = title
+    .replace(/\s*[\(\[](official|audio|video|mv|visualizer|lyric|lyrics|m\/v|remix).*?[\)\]]/gi, '')
+    .replace(/\s*feat\..*$/i, '')
+    .trim();
+
+  const cleanArtist = artist.split(',')[0].trim();
+
+  try {
+    // 1. Try exact get endpoint
+    const getUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+    const getRes = await fetch(getUrl, {
+      headers: { 'User-Agent': 'BZmusic/1.0 (https://github.com/bzmusic)' },
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (getRes.ok) {
+      const data = await getRes.json();
+      if (data.syncedLyrics || data.plainLyrics) {
+        return res.json({
+          syncedLyrics: data.syncedLyrics || null,
+          plainLyrics: data.plainLyrics || null
+        });
+      }
+    }
+
+    // 2. Fallback to search endpoint
+    const searchQuery = `${cleanTitle} ${cleanArtist}`.trim();
+    const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`;
+    const searchRes = await fetch(searchUrl, {
+      headers: { 'User-Agent': 'BZmusic/1.0 (https://github.com/bzmusic)' },
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (searchRes.ok) {
+      const list = await searchRes.json();
+      if (Array.isArray(list) && list.length > 0) {
+        // Find best match with syncedLyrics first
+        const syncedItem = list.find(item => item.syncedLyrics);
+        if (syncedItem) {
+          return res.json({
+            syncedLyrics: syncedItem.syncedLyrics,
+            plainLyrics: syncedItem.plainLyrics || null
+          });
+        }
+
+        const plainItem = list.find(item => item.plainLyrics);
+        if (plainItem) {
+          return res.json({
+            syncedLyrics: null,
+            plainLyrics: plainItem.plainLyrics
+          });
+        }
+      }
+    }
+
+    // No lyrics found
+    res.json({ syncedLyrics: null, plainLyrics: null });
+  } catch (err) {
+    console.error('[API Lyrics Error]:', err.message);
+    res.json({ syncedLyrics: null, plainLyrics: null });
+  }
+});
+
+// 5. Library APIs
+// GET /api/library
+app.get('/api/library', (req, res) => {
+  const library = readLibrary();
+  res.json(library);
+});
+
+// POST /api/library/like - Toggle like
+app.post('/api/library/like', (req, res) => {
+  const song = req.body;
+  if (!song || !song.videoId) {
+    return res.status(400).json({ error: 'Invalid song data' });
+  }
+
+  const library = readLibrary();
+  const existingIndex = library.liked.findIndex(s => s.videoId === song.videoId);
+  let liked = false;
+
+  if (existingIndex >= 0) {
+    // Unlike
+    library.liked.splice(existingIndex, 1);
+    liked = false;
+  } else {
+    // Like
+    library.liked.unshift({
+      ...song,
+      likedAt: Date.now()
+    });
+    liked = true;
+  }
+
+  writeLibrary(library);
+  res.json({ liked, likedSongs: library.liked });
+});
+
+// POST /api/library/history - Add to history
+app.post('/api/library/history', (req, res) => {
+  const song = req.body;
+  if (!song || !song.videoId) {
+    return res.status(400).json({ error: 'Invalid song data' });
+  }
+
+  const library = readLibrary();
+  // Remove existing occurrence to place it at the very top
+  library.history = library.history.filter(s => s.videoId !== song.videoId);
+  library.history.unshift({
+    ...song,
+    playedAt: Date.now()
+  });
+
+  // Limit history to 100 entries
+  if (library.history.length > 100) {
+    library.history = library.history.slice(0, 100);
+  }
+
+  writeLibrary(library);
+  res.json({ success: true, history: library.history });
+});
+
+// DELETE /api/library/history - Clear history
+app.delete('/api/library/history', (req, res) => {
+  const library = readLibrary();
+  library.history = [];
+  writeLibrary(library);
+  res.json({ success: true, history: [] });
+});
+
+// POST /api/library/playlists - Create playlist
+app.post('/api/library/playlists', (req, res) => {
+  const { name, description } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Playlist name is required' });
+  }
+
+  const library = readLibrary();
+  const newPlaylist = {
+    id: `pl_${Date.now()}`,
+    name: name.trim(),
+    description: (description || '').trim(),
+    createdAt: Date.now(),
+    songs: []
+  };
+
+  library.playlists.unshift(newPlaylist);
+  writeLibrary(library);
+  res.json({ success: true, playlist: newPlaylist, playlists: library.playlists });
+});
+
+// DELETE /api/library/playlists/:id - Delete playlist
+app.delete('/api/library/playlists/:id', (req, res) => {
+  const { id } = req.params;
+  const library = readLibrary();
+  const initialLen = library.playlists.length;
+  library.playlists = library.playlists.filter(p => p.id !== id);
+
+  if (library.playlists.length === initialLen) {
+    return res.status(404).json({ error: 'Playlist not found' });
+  }
+
+  writeLibrary(library);
+  res.json({ success: true, playlists: library.playlists });
+});
+
+// POST /api/library/playlists/:id/songs - Add song to playlist
+app.post('/api/library/playlists/:id/songs', (req, res) => {
+  const { id } = req.params;
+  const song = req.body;
+
+  if (!song || !song.videoId) {
+    return res.status(400).json({ error: 'Invalid song data' });
+  }
+
+  const library = readLibrary();
+  const playlist = library.playlists.find(p => p.id === id);
+  if (!playlist) {
+    return res.status(404).json({ error: 'Playlist not found' });
+  }
+
+  const exists = playlist.songs.some(s => s.videoId === song.videoId);
+  if (!exists) {
+    playlist.songs.push({
+      ...song,
+      addedAt: Date.now()
+    });
+    writeLibrary(library);
+  }
+
+  res.json({ success: true, playlist });
+});
+
+// DELETE /api/library/playlists/:id/songs/:videoId - Remove song from playlist
+app.delete('/api/library/playlists/:id/songs/:videoId', (req, res) => {
+  const { id, videoId } = req.params;
+  const library = readLibrary();
+  const playlist = library.playlists.find(p => p.id === id);
+
+  if (!playlist) {
+    return res.status(404).json({ error: 'Playlist not found' });
+  }
+
+  playlist.songs = playlist.songs.filter(s => s.videoId !== videoId);
+  writeLibrary(library);
+  res.json({ success: true, playlist });
+});
+
+// Fallback for SPA routing
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Start Express server
+app.listen(PORT, () => {
+  console.log(`\n======================================================`);
+  console.log(`🎵 BZusic - Trình phát nhạc cá nhân đang chạy tại:`);
+  console.log(`   ➜ http://localhost:${PORT}`);
+  console.log(`======================================================\n`);
+  
+  // Warm up Innertube in the background
+  getInnertube().catch(() => {});
+});

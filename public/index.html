@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BZusic</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="app-layout">
+    
+    <!-- Left Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="#" class="brand-logo" id="brand-logo" title="BZusic Home">
+          <svg class="brand-icon" viewBox="0 0 36 36" width="36" height="36" fill="none">
+            <rect width="36" height="36" rx="10" fill="url(#logoGrad)"/>
+            <path d="M15 11L25 18L15 25V11Z" fill="#ffffff"/>
+            <circle cx="27" cy="11" r="2" fill="#ff7733"/>
+            <defs>
+              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ff1e1e"/>
+                <stop offset="100%" stop-color="#ff5e00"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="brand-text">BZ<span>usic</span></span>
+        </a>
+        <button class="icon-btn mobile-close-btn" id="mobile-sidebar-close" aria-label="Đóng menu">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="home" id="nav-home">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+          </svg>
+          <span>Trang chủ</span>
+        </button>
+        <button class="nav-item" data-view="liked" id="nav-liked">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+          <span>Yêu thích</span>
+          <span class="badge" id="liked-count-badge">0</span>
+        </button>
+        <button class="nav-item" data-view="history" id="nav-history">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+          </svg>
+          <span>Lịch sử nghe</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Playlists Section -->
+      <div class="sidebar-playlists-section">
+        <div class="playlists-header">
+          <span class="playlists-title">DANH SÁCH PHÁT</span>
+          <button class="btn-new-playlist" id="btn-create-playlist-trigger" title="Tạo playlist mới">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>Tạo</span>
+          </button>
+        </div>
+        <div class="playlists-list" id="sidebar-playlists-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- User Tip / Local Indicator -->
+      <div class="sidebar-footer">
+        <div class="local-badge" title="Chạy cục bộ an toàn, không quảng cáo">
+          <span class="status-dot"></span>
+          <span>Local Ad-Free Engine</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content">
+      
+      <!-- Top Bar -->
+      <header class="top-bar" id="top-bar">
+        <button class="icon-btn mobile-menu-btn" id="mobile-sidebar-toggle" aria-label="Mở menu">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+
+        <div class="search-container">
+          <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <input type="text" id="search-input" class="search-input" placeholder="Tìm kiếm bài hát, ca sĩ, album trên YouTube Music..." autocomplete="off">
+          <button class="search-clear-btn" id="search-clear-btn" aria-label="Xóa tìm kiếm">✕</button>
+        </div>
+
+        <div class="top-bar-actions">
+          <button class="icon-btn" id="top-btn-now-playing" title="Chế độ Đang phát">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Scrollable Views Container -->
+      <div class="views-wrapper" id="views-wrapper">
+        
+        <!-- 1. Home View -->
+        <section class="view active" id="view-home">
+          <!-- Ambient header banner -->
+          <div class="home-hero-card">
+            <div class="hero-content">
+              <span class="hero-tag">BZusic Experience</span>
+              <h1 class="hero-title" id="greeting-title">Âm nhạc không giới hạn</h1>
+              <p class="hero-desc">Thưởng thức trọn vẹn kho nhạc YouTube Music chất lượng cao, hoàn toàn không quảng cáo.</p>
+              <div class="hero-actions">
+                <button class="btn btn-primary" id="hero-btn-random">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                  <span>Phát ngẫu nhiên Vibe</span>
+                </button>
+                <button class="btn btn-secondary" id="hero-btn-history">Xem lịch sử</button>
+              </div>
+            </div>
+            <div class="hero-decoration">
+              <div class="pulse-circle"></div>
+              <div class="pulse-circle delay-1"></div>
+            </div>
+          </div>
+
+          <!-- Section: Quick Picks / Recommendations -->
+          <div class="section-block">
+            <div class="section-header">
+              <h2 class="section-title">Gợi ý dành cho bạn</h2>
+              <span class="section-subtitle">Tuyển tập phổ biến hôm nay</span>
+            </div>
+            <div class="song-card-grid" id="home-featured-grid">
+              <!-- Dynamically populated with initial top hits -->
+            </div>
+          </div>
+
+          <!-- Section: Recently Played / Liked Preview -->
+          <div class="section-block" id="home-history-block" style="display: none;">
+            <div class="section-header">
+              <h2 class="section-title">Gần đây đã nghe</h2>
+              <button class="link-btn" id="home-view-all-history">Xem tất cả</button>
+            </div>
+            <div class="song-row-list" id="home-history-list"></div>
+          </div>
+        </section>
+
+        <!-- 2. Search Results View -->
+        <section class="view" id="view-search">
+          <div class="section-header search-results-header">
+            <div>
+              <h2 class="section-title" id="search-title">Kết quả tìm kiếm</h2>
+              <span class="section-subtitle" id="search-subtitle">Hiển thị bài hát từ YouTube Music</span>
+            </div>
+          </div>
+          <div class="search-loading" id="search-loading" style="display: none;">
+            <div class="spinner"></div>
+            <span>Đang tìm kiếm giai điệu...</span>
+          </div>
+          <div class="search-empty" id="search-empty" style="display: none;">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.4"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <p>Không tìm thấy bài hát phù hợp. Vui lòng thử từ khóa khác!</p>
+          </div>
+          <div class="song-table-container">
+            <div class="song-row-list" id="search-results-list"></div>
+          </div>
+        </section>
+
+        <!-- 3. Liked Songs View -->
+        <section class="view" id="view-liked">
+          <div class="playlist-hero liked-hero">
+            <div class="playlist-hero-cover liked-cover">
+              <svg viewBox="0 0 24 24" width="64" height="64" fill="#ffffff">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            </div>
+            <div class="playlist-hero-info">
+              <span class="playlist-type">DANH SÁCH YÊU THÍCH</span>
+              <h1 class="playlist-title">Bài hát đã thích</h1>
+              <p class="playlist-meta" id="liked-meta-info">0 bài hát • Lưu trữ cục bộ</p>
+              <div class="playlist-actions">
+                <button class="btn btn-primary" id="btn-play-all-liked">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Phát tất cả</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="song-row-list" id="liked-songs-list"></div>
+        </section>
+
+        <!-- 4. History View -->
+        <section class="view" id="view-history">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Lịch sử nghe nhạc</h2>
+              <span class="section-subtitle" id="history-subtitle">Các bài hát bạn đã thưởng thức gần đây</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-clear-history">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span>Xóa lịch sử</span>
+            </button>
+          </div>
+          <div class="song-row-list" id="history-songs-list"></div>
+        </section>
+
+        <!-- 5. Playlist Detail View -->
+        <section class="view" id="view-playlist">
+          <div class="playlist-hero">
+            <div class="playlist-hero-cover custom-cover" id="current-playlist-cover">
+              <svg viewBox="0 0 24 24" width="64" height="64" fill="#ffffff" opacity="0.8">
+                <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
+              </svg>
+            </div>
+            <div class="playlist-hero-info">
+              <span class="playlist-type">PLAYLIST CÁ NHÂN</span>
+              <h1 class="playlist-title" id="current-playlist-title">Tên Playlist</h1>
+              <p class="playlist-desc" id="current-playlist-desc">Mô tả</p>
+              <p class="playlist-meta" id="current-playlist-meta">0 bài hát</p>
+              <div class="playlist-actions">
+                <button class="btn btn-primary" id="btn-play-all-playlist">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Phát danh sách</span>
+                </button>
+                <button class="btn btn-danger btn-sm" id="btn-delete-playlist">
+                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  <span>Xóa Playlist</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="song-row-list" id="playlist-songs-list"></div>
+        </section>
+
+      </div><!-- /.views-wrapper -->
+
+      <!-- 6. Now Playing View (Full / Split Screen Modal/Overlay) -->
+      <div class="now-playing-overlay" id="now-playing-overlay">
+        <!-- Ambient Glow backdrop -->
+        <div class="ambient-glow" id="ambient-glow"></div>
+
+        <div class="now-playing-topbar">
+          <button class="icon-btn" id="btn-close-now-playing" title="Thu nhỏ (Esc)">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+          </button>
+          <span class="now-playing-topbar-title">ĐANG PHÁT</span>
+          <div style="width: 44px;"></div><!-- placeholder for balance -->
+        </div>
+
+        <div class="now-playing-content">
+          <!-- Left Column: Big Cover + Song Details -->
+          <div class="np-left-column">
+            <div class="np-cover-wrapper">
+              <img id="np-cover-img" src="favicon.svg" alt="Album Cover" class="np-cover-img">
+              <div class="np-cover-glow"></div>
+            </div>
+
+            <div class="np-track-details">
+              <div class="np-track-text">
+                <h2 class="np-track-title" id="np-track-title">Chưa chọn bài hát</h2>
+                <p class="np-track-artist" id="np-track-artist">BZusic Player</p>
+                <p class="np-track-album" id="np-track-album"></p>
+              </div>
+
+              <div class="np-track-actions">
+                <button class="icon-btn btn-like-np" id="btn-like-np" title="Thích bài hát này">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                </button>
+                <button class="icon-btn" id="btn-add-to-playlist-np" title="Thêm vào danh sách phát">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Tabs (Up Next / Lyrics) -->
+          <div class="np-right-column">
+            <div class="np-tabs">
+              <button class="np-tab active" data-tab="upnext" id="tab-btn-upnext">Tiếp theo (Up Next)</button>
+              <button class="np-tab" data-tab="lyrics" id="tab-btn-lyrics">Lời bài hát (Lyrics)</button>
+            </div>
+
+            <div class="np-tab-contents">
+              <!-- Tab 1: Up Next / Queue -->
+              <div class="tab-pane active" id="tab-pane-upnext">
+                <div class="upnext-header">
+                  <div class="autoplay-toggle">
+                    <span>Tự động phát bài tiếp theo (Autoplay)</span>
+                    <label class="switch">
+                      <input type="checkbox" id="autoplay-toggle-checkbox" checked>
+                      <span class="slider round"></span>
+                    </label>
+                  </div>
+                </div>
+                <div class="queue-list" id="np-queue-list">
+                  <!-- Dynamically rendered queue -->
+                </div>
+              </div>
+
+              <!-- Tab 2: Synced / Plain Lyrics -->
+              <div class="tab-pane" id="tab-pane-lyrics">
+                <div class="lyrics-wrapper" id="lyrics-wrapper">
+                  <div class="lyrics-loading" id="lyrics-loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <span>Đang tìm lời bài hát...</span>
+                  </div>
+                  <div class="lyrics-empty" id="lyrics-empty" style="display: none;">
+                    <p>Chưa có lời bài hát cho bài này.</p>
+                  </div>
+                  <div class="lyrics-container" id="lyrics-container">
+                    <!-- Synced lines or plain lines inserted here -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /.now-playing-overlay -->
+
+    </main>
+
+    <!-- Bottom Fixed Player Bar -->
+    <footer class="player-bar" id="player-bar">
+      
+      <!-- Left: Song Thumbnail & Info -->
+      <div class="player-left" id="player-left-trigger" title="Bấm để mở giao diện Đang phát">
+        <div class="player-thumb-wrapper">
+          <img id="player-thumb" src="favicon.svg" alt="Song thumbnail" class="player-thumb">
+          <div class="expand-indicator">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/></svg>
+          </div>
+        </div>
+        <div class="player-info">
+          <div class="player-title" id="player-title">Chọn bài để phát</div>
+          <div class="player-artist" id="player-artist">BZusic</div>
+        </div>
+        <button class="icon-btn btn-like-player" id="btn-like-player" title="Thích bài hát">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </button>
+      </div>
+
+      <!-- Center: Controls & Seekbar -->
+      <div class="player-center">
+        <div class="player-controls">
+          <!-- Shuffle Button -->
+          <button class="icon-btn btn-ctrl" id="btn-shuffle" title="Trộn bài (S)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+          </button>
+
+          <!-- Prev Button -->
+          <button class="icon-btn btn-ctrl" id="btn-prev" title="Bài trước (J)">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+
+          <!-- Play/Pause Prominent Button -->
+          <button class="play-pause-btn" id="btn-play-pause" title="Phát/Tạm dừng (Space)">
+            <svg id="play-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="pause-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+
+          <!-- Next Button -->
+          <button class="icon-btn btn-ctrl" id="btn-next" title="Bài tiếp theo (K)">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+
+          <!-- Repeat Button -->
+          <button class="icon-btn btn-ctrl" id="btn-repeat" title="Lặp lại (R)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+            <span class="repeat-one-indicator" id="repeat-one-badge" style="display: none;">1</span>
+          </button>
+        </div>
+
+        <!-- Progress Seekbar -->
+        <div class="player-progress-row">
+          <span class="time-label" id="current-time">0:00</span>
+          <div class="range-wrapper">
+            <input type="range" id="seek-slider" class="custom-slider" min="0" max="100" value="0" step="0.1" aria-label="Tua nhạc">
+            <div class="slider-fill" id="seek-slider-fill"></div>
+          </div>
+          <span class="time-label" id="total-duration">0:00</span>
+        </div>
+      </div>
+
+      <!-- Right: Volume & Overlay Toggles -->
+      <div class="player-right">
+        <!-- Volume -->
+        <div class="volume-container">
+          <button class="icon-btn" id="btn-volume-toggle" title="Tắt/Bật âm (M)">
+            <svg id="vol-high" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            <svg id="vol-muted" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display: none;"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+          </button>
+          <div class="volume-slider-wrapper">
+            <input type="range" id="volume-slider" class="custom-slider volume-slider" min="0" max="1" value="0.9" step="0.01" aria-label="Âm lượng">
+            <div class="slider-fill" id="volume-slider-fill" style="width: 90%;"></div>
+          </div>
+        </div>
+
+        <!-- Open Now Playing full button -->
+        <button class="icon-btn" id="btn-toggle-now-playing" title="Chế độ Đang phát">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </button>
+      </div>
+
+    </footer>
+
+    <!-- Native Audio Element -->
+    <audio id="audio-player" preload="metadata" crossorigin="anonymous"></audio>
+
+    <!-- Modal: Create Playlist -->
+    <div class="modal-backdrop" id="modal-create-playlist" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Tạo danh sách phát mới</h3>
+          <button class="icon-btn modal-close-btn" id="btn-close-modal-create">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="input-playlist-name">Tên danh sách phát *</label>
+            <input type="text" id="input-playlist-name" placeholder="Ví dụ: Giai điệu thư giãn cuối tuần" maxlength="60">
+          </div>
+          <div class="form-group">
+            <label for="input-playlist-desc">Mô tả (tùy chọn)</label>
+            <textarea id="input-playlist-desc" rows="3" placeholder="Nhập mô tả cho danh sách phát..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-cancel-modal-create">Hủy</button>
+          <button class="btn btn-primary" id="btn-submit-modal-create">Tạo mới</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Add to Playlist -->
+    <div class="modal-backdrop" id="modal-add-to-playlist" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Thêm vào danh sách phát</h3>
+          <button class="icon-btn modal-close-btn" id="btn-close-modal-add">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-subtext" id="add-to-playlist-song-name">Chọn playlist bạn muốn thêm bài hát vào:</p>
+          <div class="modal-playlists-list" id="modal-playlists-list">
+            <!-- Playlist options -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-cancel-modal-add">Đóng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+  </div><!-- /.app-layout -->
+
+  <script src="app.js"></script>
+</body>
+</html>

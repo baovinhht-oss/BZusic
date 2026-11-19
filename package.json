@@ -1,0 +1,23 @@
+{
+  "name": "bzmusic",
+  "version": "1.0.0",
+  "description": "BZusic - Trình phát nhạc cá nhân phong cách YouTube Music không quảng cáo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "music",
+    "youtube-music",
+    "ad-free",
+    "player",
+    "streaming"
+  ],
+  "author": "BZusic Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "youtubei.js": "^18.3.0"
+  }
+}
