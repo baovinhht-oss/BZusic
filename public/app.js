@@ -38,6 +38,12 @@
     trackHistoryTimeout: null,
     pendingAddToPlaylistSong: null,
 
+    // Search & lyrics state
+    searchMode: 'all',
+    isUserScrollingLyrics: false,
+    userScrollTimeout: null,
+    karaokeRafId: null,
+
     // Error recovery & control
     consecutiveErrors: 0,
     errorSkipTimer: null
@@ -187,6 +193,40 @@
     el.btnCloseModalAdd = document.getElementById('btn-close-modal-add');
     el.btnCancelModalAdd = document.getElementById('btn-cancel-modal-add');
 
+    // Search Filter Pills
+    el.searchFilterAll = document.getElementById('search-filter-all');
+    el.searchFilterMusic = document.getElementById('search-filter-music');
+
+    // Import Playlist Modal Elements
+    el.btnImportPlaylistTrigger = document.getElementById('btn-import-playlist-trigger');
+    el.modalImportPlaylist = document.getElementById('modal-import-playlist');
+    el.btnCloseModalImport = document.getElementById('btn-close-modal-import');
+    el.btnCancelModalImport = document.getElementById('btn-cancel-modal-import');
+    el.btnStartImport = document.getElementById('btn-start-import');
+    el.inputImportName = document.getElementById('input-import-name');
+    el.inputImportDesc = document.getElementById('input-import-desc');
+    el.tabBtnImportFile = document.getElementById('tab-btn-import-file');
+    el.tabBtnImportText = document.getElementById('tab-btn-import-text');
+    el.paneImportFile = document.getElementById('pane-import-file');
+    el.paneImportText = document.getElementById('pane-import-text');
+    el.fileDropzone = document.getElementById('file-dropzone');
+    el.inputImportFile = document.getElementById('input-import-file');
+    el.dropzoneBrowseLink = document.getElementById('dropzone-browse-link');
+    el.fileSelectedInfo = document.getElementById('file-selected-info');
+    el.importFileName = document.getElementById('import-file-name');
+    el.importFileTracksCount = document.getElementById('import-file-tracks-count');
+    el.btnRemoveSelectedFile = document.getElementById('btn-remove-selected-file');
+    el.importPlaylistSelectGroup = document.getElementById('import-playlist-select-group');
+    el.selectImportPlaylist = document.getElementById('select-import-playlist');
+    el.textareaImportText = document.getElementById('textarea-import-text');
+    el.textTracksPreview = document.getElementById('text-tracks-preview');
+    el.importProgressBox = document.getElementById('import-progress-box');
+    el.importProgressBar = document.getElementById('import-progress-bar');
+    el.importStatusText = document.getElementById('import-status-text');
+    el.importPercent = document.getElementById('import-percent');
+    el.importStatMatched = document.getElementById('import-stat-matched');
+    el.importStatFailed = document.getElementById('import-stat-failed');
+
     // Toast Container
     el.toastContainer = document.getElementById('toast-container');
   }
@@ -270,6 +310,37 @@
       el.searchClearBtn.style.display = 'none';
       el.searchInput.focus();
     });
+
+    // Detect direct YouTube link on paste
+    el.searchInput.addEventListener('paste', () => {
+      setTimeout(() => {
+        const q = el.searchInput.value.trim();
+        const ytUrlRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|music\.youtube\.com\/watch\?v=)([^"&?\/\s]{11})/i;
+        if (ytUrlRegex.test(q)) {
+          clearTimeout(searchDebounce);
+          performSearch(q);
+        }
+      }, 50);
+    });
+
+    // Search filter pills (Tất cả YouTube vs YouTube Music)
+    if (el.searchFilterAll && el.searchFilterMusic) {
+      el.searchFilterAll.addEventListener('click', () => setSearchMode('all'));
+      el.searchFilterMusic.addEventListener('click', () => setSearchMode('music'));
+    }
+
+    // Lyrics User Manual Scroll Detection (pauses auto-scroll for 3s)
+    if (el.lyricsWrapper) {
+      const handleUserLyricsScroll = () => {
+        state.isUserScrollingLyrics = true;
+        if (state.userScrollTimeout) clearTimeout(state.userScrollTimeout);
+        state.userScrollTimeout = setTimeout(() => {
+          state.isUserScrollingLyrics = false;
+        }, 3000);
+      };
+      el.lyricsWrapper.addEventListener('wheel', handleUserLyricsScroll, { passive: true });
+      el.lyricsWrapper.addEventListener('touchmove', handleUserLyricsScroll, { passive: true });
+    }
 
     // Audio Player Controls
     el.btnPlayPause.addEventListener('click', togglePlayPause);
@@ -367,6 +438,50 @@
     // Modal: Add to Playlist
     el.btnCloseModalAdd.addEventListener('click', closeAddToPlaylistModal);
     el.btnCancelModalAdd.addEventListener('click', closeAddToPlaylistModal);
+
+    // Modal: Import Playlist
+    if (el.btnImportPlaylistTrigger) {
+      el.btnImportPlaylistTrigger.addEventListener('click', openImportModal);
+    }
+    if (el.btnCloseModalImport) {
+      el.btnCloseModalImport.addEventListener('click', closeImportModal);
+    }
+    if (el.btnCancelModalImport) {
+      el.btnCancelModalImport.addEventListener('click', closeImportModal);
+    }
+    if (el.btnStartImport) {
+      el.btnStartImport.addEventListener('click', handleStartImport);
+    }
+    if (el.tabBtnImportFile && el.tabBtnImportText) {
+      el.tabBtnImportFile.addEventListener('click', () => switchImportTab('file'));
+      el.tabBtnImportText.addEventListener('click', () => switchImportTab('text'));
+    }
+    if (el.fileDropzone) {
+      el.fileDropzone.addEventListener('click', () => el.inputImportFile.click());
+      el.fileDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        el.fileDropzone.classList.add('dragover');
+      });
+      el.fileDropzone.addEventListener('dragleave', () => {
+        el.fileDropzone.classList.remove('dragover');
+      });
+      el.fileDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        el.fileDropzone.classList.remove('dragover');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          processImportFile(e.dataTransfer.files[0]);
+        }
+      });
+    }
+    if (el.inputImportFile) {
+      el.inputImportFile.addEventListener('change', handleFileSelected);
+    }
+    if (el.btnRemoveSelectedFile) {
+      el.btnRemoveSelectedFile.addEventListener('click', clearSelectedFile);
+    }
+    if (el.textareaImportText) {
+      el.textareaImportText.addEventListener('input', updateTextImportPreview);
+    }
 
     // Keyboard Shortcuts
     window.addEventListener('keydown', handleGlobalKeydown);
@@ -717,6 +832,7 @@
       state.errorSkipTimer = null;
     }
     updatePlayPauseButtonUI(true);
+    startKaraokeLoop();
     if (state.currentTrack) {
       updateDocumentTitle(state.currentTrack.title, state.currentTrack.artist, true);
     }
@@ -727,6 +843,7 @@
 
   function onAudioPause() {
     state.isPlaying = false;
+    stopKaraokeLoop();
     updatePlayPauseButtonUI(false);
     updateDocumentTitle('', '', false);
     if (navigator.mediaSession) {
@@ -966,23 +1083,66 @@
     }
   }
 
+  function parseTimeTag(str) {
+    const m = str.match(/(\d{1,2}):(\d{2})\.?(\d{1,3})?/);
+    if (!m) return null;
+    const min = parseInt(m[1], 10);
+    const sec = parseInt(m[2], 10);
+    const ms = m[3] ? parseInt(m[3].padEnd(3, '0').slice(0, 3), 10) : 0;
+    return min * 60 + sec + ms / 1000;
+  }
+
   function parseLrc(lrcText) {
     const lines = [];
     const rawLines = lrcText.split(/\r?\n/);
-    const timeRegex = /\[(\d{2}):(\d{2})\.?(\d{2,3})?\]/;
+    const lineTimeRegex = /^\[(\d{1,2}:\d{2}(?:\.\d{1,3})?)\]/;
+    const wordTimeRegex = /<(\d{1,2}:\d{2}(?:\.\d{1,3})?)>([^<]*)/g;
 
-    for (const raw of rawLines) {
-      const match = raw.match(timeRegex);
-      if (match) {
-        const min = parseInt(match[1], 10);
-        const sec = parseInt(match[2], 10);
-        const ms = match[3] ? parseInt(match[3].padEnd(3, '0').slice(0, 3), 10) : 0;
-        const time = min * 60 + sec + ms / 1000;
-        const text = raw.replace(timeRegex, '').trim();
-        if (text) {
-          lines.push({ time, text });
+    for (let i = 0; i < rawLines.length; i++) {
+      const raw = rawLines[i].trim();
+      if (!raw) continue;
+
+      let lineTime = null;
+      let content = raw;
+
+      const lineMatch = raw.match(lineTimeRegex);
+      if (lineMatch) {
+        lineTime = parseTimeTag(lineMatch[1]);
+        content = raw.replace(lineTimeRegex, '').trim();
+      }
+
+      // Check for Enhanced word tokens: <mm:ss.xx>word
+      const words = [];
+      let match;
+      while ((match = wordTimeRegex.exec(content)) !== null) {
+        const wTime = parseTimeTag(match[1]);
+        const wText = match[2];
+        if (wTime !== null && wText) {
+          words.push({ time: wTime, text: wText });
         }
       }
+
+      // Completely remove all <...> and [...] tags so they never appear on screen
+      const cleanText = content.replace(/<[^>]*>/g, '').replace(/\[[^\]]*\]/g, '').trim();
+      if (!cleanText && words.length === 0) continue;
+
+      if (lineTime === null && words.length > 0) {
+        lineTime = words[0].time;
+      }
+      if (lineTime === null) continue;
+
+      // Assign word end times
+      for (let w = 0; w < words.length; w++) {
+        const nextWord = words[w + 1];
+        words[w].endTime = nextWord ? nextWord.time : (words[w].time + 0.8);
+      }
+
+      lines.push({
+        time: lineTime,
+        text: cleanText,
+        words: words.length > 0 ? words : null,
+        isEnhanced: words.length > 0
+      });
     }
 
     return lines.sort((a, b) => a.time - b.time);
@@ -994,9 +1154,27 @@
 
     lines.forEach((line, idx) => {
       const div = document.createElement('div');
-      div.className = 'lyric-line';
+      div.className = `lyric-line${line.isEnhanced ? ' enhanced' : ''}`;
       div.dataset.index = idx;
-      div.textContent = line.text;
+      div.dataset.time = line.time;
+
+      if (line.isEnhanced && line.words) {
+        line.words.forEach((w) => {
+          const span = document.createElement('span');
+          span.className = 'lyric-word';
+          span.dataset.start = w.time;
+          span.dataset.end = w.endTime;
+          span.textContent = w.text;
+          span.addEventListener('click', (e) => {
+            e.stopPropagation();
+            el.audio.currentTime = w.time;
+            if (el.audio.paused) el.audio.play();
+          });
+          div.appendChild(span);
+        });
+      } else {
+        div.textContent = line.text;
+      }
 
       div.addEventListener('click', () => {
         el.audio.currentTime = line.time;
@@ -1038,12 +1216,57 @@
       allLines.forEach((elem, idx) => {
         if (idx === foundIndex) {
           elem.classList.add('active');
-          // Smooth scroll active line to center
-          elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Auto scroll to center if user is not actively scrolling
+          if (!state.isUserScrollingLyrics) {
+            elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
         } else {
           elem.classList.remove('active');
+          const words = elem.querySelectorAll('.lyric-word');
+          words.forEach(w => w.classList.remove('active', 'sung'));
         }
       });
+    }
+
+    // Update word-level karaoke for active line in Enhanced LRC
+    if (state.activeLyricIndex >= 0) {
+      const activeLineElem = el.lyricsContainer.querySelector(`.lyric-line[data-index="${state.activeLyricIndex}"]`);
+      if (activeLineElem && activeLineElem.classList.contains('enhanced')) {
+        const words = activeLineElem.querySelectorAll('.lyric-word');
+        words.forEach(span => {
+          const start = parseFloat(span.dataset.start);
+          const end = parseFloat(span.dataset.end);
+          if (currentTime >= end) {
+            span.classList.add('sung');
+            span.classList.remove('active');
+          } else if (currentTime >= start) {
+            span.classList.add('active');
+            span.classList.remove('sung');
+          } else {
+            span.classList.remove('active', 'sung');
+          }
+        });
+      }
+    }
+  }
+
+  function startKaraokeLoop() {
+    if (state.karaokeRafId) cancelAnimationFrame(state.karaokeRafId);
+    function loop() {
+      if (!el.audio.paused && state.lyrics && state.lyrics.type === 'synced') {
+        syncLyricsTime(el.audio.currentTime || 0);
+        state.karaokeRafId = requestAnimationFrame(loop);
+      } else {
+        state.karaokeRafId = null;
+      }
+    }
+    state.karaokeRafId = requestAnimationFrame(loop);
+  }
+
+  function stopKaraokeLoop() {
+    if (state.karaokeRafId) {
+      cancelAnimationFrame(state.karaokeRafId);
+      state.karaokeRafId = null;
     }
   }
 
@@ -1094,19 +1317,28 @@
   }
 
   // ==========================================
-  // Search Execution
+  // Search Execution & Modes
   // ==========================================
+  function setSearchMode(mode) {
+    state.searchMode = mode;
+    if (el.searchFilterAll) el.searchFilterAll.classList.toggle('active', mode === 'all');
+    if (el.searchFilterMusic) el.searchFilterMusic.classList.toggle('active', mode === 'music');
+    const q = el.searchInput.value.trim();
+    if (q) performSearch(q);
+  }
+
   async function performSearch(query) {
     if (!query) return;
 
     switchView('search');
-    el.searchSubtitle.textContent = `Kết quả cho "${query}"`;
+    const modeLabel = state.searchMode === 'all' ? 'Tất cả YouTube' : 'YouTube Music';
+    el.searchSubtitle.textContent = `Kết quả cho "${query}" (${modeLabel})`;
     el.searchResultsList.innerHTML = '';
     el.searchEmpty.style.display = 'none';
     el.searchLoading.style.display = 'flex';
 
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=${state.searchMode}`);
       el.searchLoading.style.display = 'none';
 
       if (res.ok) {
@@ -1523,6 +1755,378 @@
       }
     } catch (err) {
       showToast('Không thể xóa bài hát khỏi playlist');
+    }
+  }
+
+  // ==========================================
+  // Import Playlist Logic (Apple Music / CSV / Text)
+  // ==========================================
+  let importSelectedTracks = [];
+  let importParsedPlaylists = [];
+  let isImporting = false;
+  let importAbortController = null;
+
+  function openImportModal() {
+    el.modalImportPlaylist.style.display = 'flex';
+    resetImportModal();
+    el.inputImportName.focus();
+  }
+
+  function closeImportModal() {
+    if (isImporting) {
+      if (confirm('Quá trình nhập playlist đang diễn ra. Bạn có chắc muốn dừng lại?')) {
+        if (importAbortController) {
+          importAbortController.abort();
+        }
+        isImporting = false;
+      } else {
+        return;
+      }
+    }
+    el.modalImportPlaylist.style.display = 'none';
+    resetImportModal();
+  }
+
+  function resetImportModal() {
+    importSelectedTracks = [];
+    importParsedPlaylists = [];
+    isImporting = false;
+    importAbortController = null;
+
+    el.inputImportName.value = '';
+    el.inputImportDesc.value = '';
+    el.inputImportFile.value = '';
+    el.textareaImportText.value = '';
+    el.textTracksPreview.textContent = 'Đã nhận diện: 0 bài';
+
+    el.fileDropzone.style.display = 'flex';
+    el.fileSelectedInfo.style.display = 'none';
+    el.importPlaylistSelectGroup.style.display = 'none';
+    el.selectImportPlaylist.innerHTML = '';
+    el.importProgressBox.style.display = 'none';
+    el.importProgressBar.style.width = '0%';
+    el.importStatusText.textContent = 'Đang chuẩn bị...';
+    el.importPercent.textContent = '0%';
+    el.importStatMatched.textContent = '0';
+    el.importStatFailed.textContent = '0';
+
+    el.btnStartImport.disabled = false;
+    el.btnStartImport.innerHTML = `
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <span>Bắt đầu Import</span>
+    `;
+
+    switchImportTab('file');
+  }
+
+  function switchImportTab(tab) {
+    el.tabBtnImportFile.classList.toggle('active', tab === 'file');
+    el.tabBtnImportText.classList.toggle('active', tab === 'text');
+    el.paneImportFile.style.display = tab === 'file' ? 'block' : 'none';
+    el.paneImportText.style.display = tab === 'text' ? 'block' : 'none';
+  }
+
+  function handleFileSelected(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    processImportFile(file);
+  }
+
+  function clearSelectedFile() {
+    el.inputImportFile.value = '';
+    importSelectedTracks = [];
+    importParsedPlaylists = [];
+    el.fileDropzone.style.display = 'flex';
+    el.fileSelectedInfo.style.display = 'none';
+    el.importPlaylistSelectGroup.style.display = 'none';
+    el.selectImportPlaylist.innerHTML = '';
+  }
+
+  function processImportFile(file) {
+    const fileName = file.name;
+    const baseName = fileName.replace(/\.[^/.]+$/, '');
+    if (!el.inputImportName.value.trim()) {
+      el.inputImportName.value = baseName;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target.result;
+        if (fileName.toLowerCase().endsWith('.json')) {
+          parseImportJson(content, baseName);
+        } else if (fileName.toLowerCase().endsWith('.csv')) {
+          parseImportCsv(content, baseName);
+        } else {
+          showToast('Định dạng file không hỗ trợ! Vui lòng chọn file .json hoặc .csv');
+          return;
+        }
+
+        // Show file info
+        el.importFileName.textContent = fileName;
+        el.importFileTracksCount.textContent = `${importSelectedTracks.length} bài hát`;
+        el.fileDropzone.style.display = 'none';
+        el.fileSelectedInfo.style.display = 'flex';
+      } catch (err) {
+        showToast('Lỗi khi đọc file: ' + err.message);
+      }
+    };
+    reader.onerror = () => showToast('Không thể đọc file');
+    reader.readAsText(file);
+  }
+
+  function parseImportJson(jsonStr, defaultName) {
+    const data = JSON.parse(jsonStr);
+    importParsedPlaylists = [];
+
+    if (data.playlists && Array.isArray(data.playlists)) {
+      data.playlists.forEach((pl, idx) => {
+        const plName = pl.name || `Playlist ${idx + 1}`;
+        const tracks = extractTracksFromItems(pl.items || pl.tracks || pl.songs || []);
+        if (tracks.length > 0) {
+          importParsedPlaylists.push({ name: plName, tracks });
+        }
+      });
+    } else if (data.Playlists && Array.isArray(data.Playlists)) {
+      data.Playlists.forEach((pl, idx) => {
+        const plName = pl.Name || `Playlist ${idx + 1}`;
+        const tracks = extractTracksFromItems(pl.Tracks || pl.Items || pl.songs || []);
+        if (tracks.length > 0) {
+          importParsedPlaylists.push({ name: plName, tracks });
+        }
+      });
+    } else if (Array.isArray(data)) {
+      const tracks = extractTracksFromItems(data);
+      importParsedPlaylists.push({ name: defaultName, tracks });
+    } else if (data.tracks || data.items || data.songs) {
+      const plName = data.name || data.title || defaultName;
+      const tracks = extractTracksFromItems(data.tracks || data.items || data.songs);
+      importParsedPlaylists.push({ name: plName, tracks });
+    }
+
+    if (importParsedPlaylists.length > 1) {
+      el.selectImportPlaylist.innerHTML = '';
+      importParsedPlaylists.forEach((pl, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = `${pl.name} (${pl.tracks.length} bài)`;
+        el.selectImportPlaylist.appendChild(opt);
+      });
+      el.importPlaylistSelectGroup.style.display = 'block';
+      el.selectImportPlaylist.onchange = () => {
+        const selected = importParsedPlaylists[parseInt(el.selectImportPlaylist.value, 10)];
+        if (selected) {
+          importSelectedTracks = selected.tracks;
+          el.inputImportName.value = selected.name;
+          el.importFileTracksCount.textContent = `${selected.tracks.length} bài hát`;
+        }
+      };
+      importSelectedTracks = importParsedPlaylists[0].tracks;
+      el.inputImportName.value = importParsedPlaylists[0].name;
+    } else if (importParsedPlaylists.length === 1) {
+      importSelectedTracks = importParsedPlaylists[0].tracks;
+      el.inputImportName.value = importParsedPlaylists[0].name;
+      el.importPlaylistSelectGroup.style.display = 'none';
+    } else {
+      throw new Error('Không tìm thấy bài hát nào trong file JSON');
+    }
+  }
+
+  function extractTracksFromItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map(item => {
+      if (typeof item === 'string') {
+        return parseTrackString(item);
+      }
+      const title = item.name || item.title || item.trackName || item['Track Name'] || item['Song Name'] || '';
+      const artist = item.artist || item.artistName || item['Artist Name'] || item.composer || item.performer || '';
+      if (!title) return null;
+      return { title: title.trim(), artist: artist.trim() };
+    }).filter(Boolean);
+  }
+
+  function parseImportCsv(csvStr, defaultName) {
+    const lines = csvStr.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length === 0) throw new Error('File CSV trống');
+
+    function splitCsvLine(line) {
+      const result = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') {
+          inQuotes = !inQuotes;
+        } else if (c === ',' && !inQuotes) {
+          result.push(cur.trim().replace(/^"|"$/g, ''));
+          cur = '';
+        } else {
+          cur += c;
+        }
+      }
+      result.push(cur.trim().replace(/^"|"$/g, ''));
+      return result;
+    }
+
+    const header = splitCsvLine(lines[0]).map(h => h.toLowerCase());
+    let titleIdx = header.findIndex(h => h.includes('track') || h.includes('title') || h.includes('name') || h.includes('song'));
+    let artistIdx = header.findIndex(h => h.includes('artist') || h.includes('performer') || h.includes('creator'));
+
+    const startIdx = (titleIdx !== -1 || artistIdx !== -1) ? 1 : 0;
+    if (titleIdx === -1) titleIdx = 0;
+    if (artistIdx === -1) artistIdx = 1;
+
+    const tracks = [];
+    for (let i = startIdx; i < lines.length; i++) {
+      const cols = splitCsvLine(lines[i]);
+      const title = cols[titleIdx] || '';
+      const artist = cols[artistIdx] || '';
+      if (title.trim()) {
+        tracks.push({ title: title.trim(), artist: artist.trim() });
+      }
+    }
+
+    if (tracks.length === 0) throw new Error('Không trích xuất được bài hát nào từ file CSV');
+    importSelectedTracks = tracks;
+    if (!el.inputImportName.value.trim()) {
+      el.inputImportName.value = defaultName;
+    }
+  }
+
+  function parseTrackString(str) {
+    const s = str.trim();
+    if (s.includes(' - ')) {
+      const parts = s.split(' - ');
+      return { title: parts[0].trim(), artist: parts.slice(1).join(' - ').trim() };
+    } else if (s.includes(' – ')) {
+      const parts = s.split(' – ');
+      return { title: parts[0].trim(), artist: parts.slice(1).join(' – ').trim() };
+    }
+    return { title: s, artist: '' };
+  }
+
+  function updateTextImportPreview() {
+    const text = el.textareaImportText.value;
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    el.textTracksPreview.textContent = `Đã nhận diện: ${lines.length} bài`;
+  }
+
+  async function handleStartImport() {
+    if (isImporting) return;
+
+    const name = el.inputImportName.value.trim();
+    if (!name) {
+      showToast('Vui lòng nhập tên Playlist!');
+      el.inputImportName.focus();
+      return;
+    }
+
+    const isFileTab = el.tabBtnImportFile.classList.contains('active');
+    let tracksToImport = [];
+
+    if (isFileTab) {
+      tracksToImport = importSelectedTracks;
+    } else {
+      const rawText = el.textareaImportText.value;
+      const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      tracksToImport = lines.map(parseTrackString);
+    }
+
+    if (tracksToImport.length === 0) {
+      showToast(isFileTab ? 'Vui lòng chọn file .json hoặc .csv hợp lệ!' : 'Vui lòng nhập ít nhất một bài hát vào khung text!');
+      return;
+    }
+
+    isImporting = true;
+    el.btnStartImport.disabled = true;
+    el.btnStartImport.innerHTML = `
+      <div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
+      <span>Đang nhập...</span>
+    `;
+
+    el.importProgressBox.style.display = 'block';
+    el.importProgressBar.style.width = '0%';
+    el.importPercent.textContent = '0%';
+    el.importStatusText.textContent = `Bắt đầu xử lý ${tracksToImport.length} bài hát...`;
+    el.importStatMatched.textContent = '0';
+    el.importStatFailed.textContent = '0';
+
+    importAbortController = new AbortController();
+
+    try {
+      const response = await fetch('/api/library/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description: el.inputImportDesc.value.trim(),
+          tracks: tracksToImport
+        }),
+        signal: importAbortController.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop();
+
+        for (const ev of events) {
+          const line = ev.trim();
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'progress') {
+                const percent = Math.round((data.current / data.total) * 100);
+                el.importProgressBar.style.width = `${percent}%`;
+                el.importPercent.textContent = `${percent}%`;
+                el.importStatusText.textContent = `Đang tìm [${data.current}/${data.total}]: ${data.trackLabel}`;
+                el.importStatMatched.textContent = data.matchedCount;
+                el.importStatFailed.textContent = data.failedCount;
+              } else if (data.type === 'complete') {
+                el.importProgressBar.style.width = '100%';
+                el.importPercent.textContent = '100%';
+                el.importStatusText.textContent = `Hoàn tất! Khớp ${data.matchedCount}/${tracksToImport.length} bài hát.`;
+                showToast(`Đã tạo playlist "${data.playlist.name}" thành công! (${data.matchedCount} bài)`);
+
+                state.library.playlists = data.playlists;
+                renderSidebarPlaylists();
+
+                setTimeout(() => {
+                  closeImportModal();
+                  renderPlaylistView(data.playlist.id);
+                }, 1000);
+                return;
+              } else if (data.type === 'error') {
+                showToast(`Lỗi nhập playlist: ${data.message}`);
+              }
+            } catch (jsonErr) {}
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        showToast('Đã dừng tiến trình import.');
+      } else {
+        showToast(`Lỗi trong quá trình import: ${err.message}`);
+      }
+    } finally {
+      isImporting = false;
+      el.btnStartImport.disabled = false;
+      el.btnStartImport.innerHTML = `
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span>Bắt đầu Import</span>
+      `;
     }
   }
 

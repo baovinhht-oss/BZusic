@@ -316,15 +316,113 @@ function upgradeThumbnail(url) {
 // API Routes
 // ==========================================
 
-// 1. GET /api/search?q=...
+// 1. GET /api/search?q=...&mode=all|music
 app.get('/api/search', async (req, res) => {
   const query = (req.query.q || '').trim();
+  const mode = (req.query.mode || 'all').toLowerCase(); // 'all' (default) or 'music'
+
   if (!query) {
     return res.status(400).json({ error: 'Missing search query parameter `q`' });
   }
 
   try {
     const yt = await getInnertube();
+
+    // Direct YouTube Link Detection: videoId extraction
+    const ytUrlRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|music\.youtube\.com\/watch\?v=)([^"&?\/\s]{11})/i;
+    const urlMatch = query.match(ytUrlRegex);
+
+    if (urlMatch) {
+      const videoId = urlMatch[1];
+      console.log(`[API Search] Detected direct YouTube URL for videoId: ${videoId}`);
+      try {
+        const info = await yt.getBasicInfo(videoId);
+        const basic = info.basic_info || {};
+        const song = {
+          videoId,
+          title: basic.title || 'Không có tiêu đề',
+          artist: basic.author || 'Chưa rõ',
+          album: '',
+          thumbnail: upgradeThumbnail(basic.thumbnail?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`),
+          duration: basic.duration ? `${Math.floor(basic.duration / 60)}:${('0' + (basic.duration % 60)).slice(-2)}` : '0:00'
+        };
+        return res.json({ results: [song] });
+      } catch (directErr) {
+        console.warn(`[API Search] Failed getBasicInfo for ${videoId}:`, directErr.message);
+        return res.json({
+          results: [{
+            videoId,
+            title: 'YouTube Track',
+            artist: 'YouTube',
+            album: '',
+            thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            duration: '0:00'
+          }]
+        });
+      }
+    }
+
+    // Mode 1: Search whole YouTube (mode=all)
+    if (mode === 'all') {
+      const search = await yt.search(query, { type: 'video' });
+      let videos = [];
+      if (search.videos && Array.isArray(search.videos)) {
+        videos = search.videos;
+      } else if (search.results && Array.isArray(search.results)) {
+        videos = search.results.filter(r => r.type === 'Video' || r.id);
+      } else if (search.contents && Array.isArray(search.contents)) {
+        for (const sec of search.contents) {
+          if (sec.contents && Array.isArray(sec.contents)) {
+            videos.push(...sec.contents.filter(c => c.type === 'Video' || c.id));
+          }
+        }
+      }
+
+      const results = videos.map(item => {
+        const videoId = item.id;
+        if (!videoId) return null;
+
+        let thumbnail = '';
+        if (item.thumbnails && item.thumbnails.length > 0) {
+          const highest = item.thumbnails.reduce((prev, curr) => (curr.width > prev.width ? curr : prev), item.thumbnails[0]);
+          thumbnail = upgradeThumbnail(highest.url);
+        } else if (item.best_thumbnail?.url) {
+          thumbnail = upgradeThumbnail(item.best_thumbnail.url);
+        }
+        if (!thumbnail) {
+          thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        }
+
+        const title = typeof item.title === 'string' ? item.title : (item.title?.text || 'Không có tiêu đề');
+        let artist = 'Chưa rõ';
+        if (item.author?.name) {
+          artist = item.author.name;
+        } else if (typeof item.author === 'string') {
+          artist = item.author;
+        }
+
+        let duration = '0:00';
+        if (item.duration?.text) {
+          duration = item.duration.text;
+        } else if (item.duration?.seconds) {
+          const s = item.duration.seconds;
+          duration = `${Math.floor(s / 60)}:${('0' + (s % 60)).slice(-2)}`;
+        }
+
+        return {
+          videoId,
+          title,
+          artist,
+          album: '',
+          thumbnail,
+          duration
+        };
+      }).filter(Boolean);
+
+      return res.json({ results });
+    }
+
+    // Mode 2: Standard YouTube Music (mode=music)
     const search = await yt.music.search(query, { type: 'song' });
 
     let rawItems = [];
@@ -793,6 +891,163 @@ app.delete('/api/library/playlists/:id/songs/:videoId', (req, res) => {
   playlist.songs = playlist.songs.filter(s => s.videoId !== videoId);
   writeLibrary(library);
   res.json({ success: true, playlist });
+});
+
+// POST /api/library/import - Streamed Playlist Import (SSE)
+app.post('/api/library/import', async (req, res) => {
+  const { name, description, tracks } = req.body;
+
+  if (!Array.isArray(tracks) || tracks.length === 0) {
+    return res.status(400).json({ error: 'Danh sách bài hát không hợp lệ hoặc trống' });
+  }
+
+  // Set SSE response headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders();
+  }
+
+  let isAborted = false;
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      isAborted = true;
+      console.log(`[Import] Client disconnected, aborting import "${name}"`);
+    }
+  });
+
+  const sendEvent = (data) => {
+    if (!isAborted) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+  };
+
+  try {
+    const yt = await getInnertube();
+    const matchedSongs = [];
+    const total = tracks.length;
+
+    sendEvent({ type: 'start', total });
+
+    for (let i = 0; i < total; i++) {
+      if (isAborted) break;
+
+      const track = tracks[i];
+      const trackTitle = (track.title || '').trim();
+      const trackArtist = (track.artist || '').trim();
+      const trackLabel = trackArtist ? `${trackTitle} - ${trackArtist}` : trackTitle;
+
+      let matchedSong = null;
+
+      if (trackTitle) {
+        const q = `${trackTitle} ${trackArtist}`.trim();
+        try {
+          // 1. First try yt.music.search
+          const mSearch = await yt.music.search(q, { type: 'song' });
+          let items = mSearch.songs?.contents || mSearch.results || [];
+          if (items.length > 0) {
+            const first = items[0];
+            const videoId = first.id || first.video_id;
+            if (videoId) {
+              let thumb = '';
+              if (first.thumbnails && first.thumbnails.length > 0) {
+                const highest = first.thumbnails.reduce((p, c) => (c.width > p.width ? c : p), first.thumbnails[0]);
+                thumb = upgradeThumbnail(highest.url);
+              }
+              if (!thumb) thumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+              let artistName = trackArtist || 'Chưa rõ';
+              if (Array.isArray(first.artists)) {
+                artistName = first.artists.map(a => a.name).filter(Boolean).join(', ') || artistName;
+              } else if (first.author?.name) {
+                artistName = first.author.name;
+              }
+
+              matchedSong = {
+                videoId,
+                title: first.title?.text || (typeof first.title === 'string' ? first.title : trackTitle),
+                artist: artistName,
+                album: first.album?.name || '',
+                thumbnail: thumb,
+                duration: first.duration?.text || '0:00'
+              };
+            }
+          }
+
+          // 2. Fallback to general YouTube video search if not matched
+          if (!matchedSong) {
+            const vSearch = await yt.search(q, { type: 'video' });
+            const vItems = vSearch.videos || (vSearch.results ? vSearch.results.filter(r => r.type === 'Video' || r.id) : []);
+            if (vItems.length > 0) {
+              const first = vItems[0];
+              const videoId = first.id;
+              if (videoId) {
+                let thumb = first.thumbnails?.[0]?.url || first.best_thumbnail?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+                matchedSong = {
+                  videoId,
+                  title: typeof first.title === 'string' ? first.title : (first.title?.text || trackTitle),
+                  artist: first.author?.name || trackArtist || 'Chưa rõ',
+                  album: '',
+                  thumbnail: upgradeThumbnail(thumb),
+                  duration: first.duration?.text || '0:00'
+                };
+              }
+            }
+          }
+        } catch (searchErr) {
+          console.error(`[Import Search Error for "${trackLabel}"]:`, searchErr.message);
+        }
+      }
+
+      if (matchedSong) {
+        matchedSongs.push(matchedSong);
+      }
+
+      sendEvent({
+        type: 'progress',
+        current: i + 1,
+        total,
+        trackLabel,
+        matched: !!matchedSong,
+        matchedCount: matchedSongs.length,
+        failedCount: (i + 1) - matchedSongs.length,
+        matchedSong
+      });
+
+      // Small throttle to avoid hitting rate limits
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    if (!isAborted) {
+      const library = readLibrary();
+      const playlistName = (name || `Imported Playlist ${new Date().toLocaleDateString('vi-VN')}`).trim();
+      const newPlaylist = {
+        id: `pl_${Date.now()}`,
+        name: playlistName,
+        description: (description || `Imported ${matchedSongs.length}/${total} bài hát`).trim(),
+        createdAt: Date.now(),
+        songs: matchedSongs
+      };
+
+      library.playlists.unshift(newPlaylist);
+      writeLibrary(library);
+
+      sendEvent({
+        type: 'complete',
+        playlist: newPlaylist,
+        matchedCount: matchedSongs.length,
+        failedCount: total - matchedSongs.length,
+        playlists: library.playlists
+      });
+
+      res.end();
+    }
+  } catch (err) {
+    console.error('[Import Fatal Error]:', err.message);
+    sendEvent({ type: 'error', message: err.message });
+    res.end();
+  }
 });
 
 // Fallback for SPA routing

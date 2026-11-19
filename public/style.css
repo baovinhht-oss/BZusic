@@ -1214,51 +1214,102 @@ input:checked + .slider:before { transform: translateX(20px); }
   100% { height: 100%; }
 }
 
-/* Tab 2: Synced Lyrics */
+/* Tab 2: Synced Lyrics - Apple Music Style */
 .lyrics-wrapper {
   height: 100%;
   overflow-y: auto;
-  padding: 40px 32px;
+  padding: 60px 40px;
   position: relative;
   scroll-behavior: smooth;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
 }
 
 .lyrics-container {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 26px;
+  padding-bottom: 220px;
 }
 
+/* Inactive lyrics lines: blur and lower opacity */
 .lyric-line {
-  font-size: 1.45rem;
+  font-size: 1.75rem;
   font-weight: 700;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.28);
+  line-height: 1.45;
+  color: #ffffff;
+  opacity: 0.35;
+  filter: blur(1.2px);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  padding: 6px 10px;
+  transition: opacity 0.35s ease, filter 0.35s ease, transform 0.35s ease, color 0.35s ease;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
   user-select: none;
-}
-
-.lyric-line:hover {
-  color: rgba(255, 255, 255, 0.7);
-  background-color: rgba(255, 255, 255, 0.04);
-}
-
-.lyric-line.active {
-  color: #ffffff;
-  transform: scale(1.03);
   transform-origin: left center;
-  text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+}
+
+/* When hovering over the lyrics container, clear the blur for easier reading and clicking */
+.lyrics-container:hover .lyric-line {
+  filter: blur(0px);
+  opacity: 0.65;
+}
+
+.lyrics-container:hover .lyric-line:hover {
+  opacity: 0.95;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Active line: fully visible, enlarged, glowing */
+.lyric-line.active {
+  opacity: 1 !important;
+  filter: blur(0px) !important;
+  transform: scale(1.04);
+  color: #ffffff;
+  text-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
+}
+
+/* Enhanced LRC: Karaoke Word Spans */
+.lyric-line.enhanced {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.28em;
+}
+
+.lyric-word {
+  display: inline-block;
+  opacity: 0.35;
+  color: rgba(255, 255, 255, 0.5);
+  transition: opacity 0.15s ease, color 0.15s ease, text-shadow 0.15s ease, transform 0.15s ease;
+}
+
+/* When parent line is active: words default to dim white */
+.lyric-line.active .lyric-word {
+  opacity: 0.45;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Word already sung in active line */
+.lyric-line.active .lyric-word.sung {
+  opacity: 1;
+  color: #ffffff;
+}
+
+/* Current word being sung */
+.lyric-line.active .lyric-word.active {
+  opacity: 1;
+  color: #ffffff;
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.85);
+  transform: scale(1.05);
 }
 
 .lyric-plain-text {
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   line-height: 1.9;
   color: var(--text-secondary);
   white-space: pre-wrap;
   font-weight: 500;
+  padding: 20px 0;
 }
 
 /* ==========================================================================
@@ -1662,6 +1713,277 @@ input:checked + .slider:before { transform: translateX(20px); }
 @keyframes toastOut {
   from { opacity: 1; transform: translateY(0) scale(1); }
   to { opacity: 0; transform: translateY(8px) scale(0.95); }
+}
+
+/* ==========================================================================
+   Search Filter Pills & Import Modal Enhancements
+   ========================================================================== */
+.search-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: var(--card-bg, #1a1a1a);
+  color: var(--text-secondary, #b3b3b3);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 9999px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.2s);
+}
+
+.filter-pill:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.filter-pill.active {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.playlists-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-import-playlist {
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+}
+
+.btn-import-playlist:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* Modal Import Playlist */
+.modal-card-lg {
+  max-width: 580px;
+  width: 92%;
+}
+
+.modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-title-wrap svg {
+  color: var(--accent);
+}
+
+.import-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.import-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.import-tab-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.import-tab-btn.active {
+  background: rgba(255, 75, 43, 0.15);
+  color: #ff6b4a;
+  border-color: rgba(255, 75, 43, 0.3);
+}
+
+.file-dropzone {
+  border: 2px dashed rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-lg);
+  padding: 28px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.file-dropzone:hover, .file-dropzone.dragover {
+  border-color: var(--accent);
+  background-color: rgba(255, 75, 43, 0.06);
+}
+
+.file-dropzone svg {
+  color: var(--accent);
+}
+
+.dropzone-text {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.browse-link {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dropzone-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.file-selected-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  margin-top: 12px;
+}
+
+.file-info-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-name {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.92rem;
+}
+
+.file-count {
+  font-size: 0.8rem;
+  background: var(--accent);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+.custom-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: #1e1e1e;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: #fff;
+  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.custom-select:focus {
+  border-color: var(--accent);
+}
+
+.text-hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.text-hint code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #ff9966;
+}
+
+.text-tracks-preview {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  text-align: right;
+}
+
+.import-progress-box {
+  margin-top: 18px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.import-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.import-status-text {
+  font-size: 0.88rem;
+  color: #fff;
+  font-weight: 500;
+  max-width: 80%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.import-percent {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.import-progress-bar-wrap {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.import-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ff416c, #ff4b2b);
+  border-radius: 9999px;
+  transition: width 0.25s ease;
+}
+
+.import-stats-row {
+  display: flex;
+  gap: 16px;
+  font-size: 0.82rem;
+}
+
+.stat-item.success {
+  color: #4ade80;
+}
+
+.stat-item.failed {
+  color: #f87171;
 }
 
 /* ==========================================================================
