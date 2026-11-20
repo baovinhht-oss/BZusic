@@ -10,7 +10,8 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ limit: '15mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Ensure data directory exists
@@ -28,8 +29,8 @@ if (!fs.existsSync(LIBRARY_FILE)) {
     playlists: [
       {
         id: 'pl_featured',
-        name: 'Tuyển tập BZusic Vibe',
-        description: 'Những bài hát tuyển chọn khởi động cùng BZusic',
+        name: 'BZusic Vibe Collection',
+        description: 'Curated songs to get started with BZusic',
         createdAt: Date.now(),
         songs: []
       }
@@ -57,7 +58,9 @@ function readLibrary() {
 
 function writeLibrary(data) {
   try {
-    fs.writeFileSync(LIBRARY_FILE, JSON.stringify(data, null, 2), 'utf8');
+    const tempFile = path.join(DATA_DIR, 'library.json.tmp');
+    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tempFile, LIBRARY_FILE);
     return true;
   } catch (err) {
     console.error('[Library] Error writing library file:', err.message);
@@ -186,9 +189,18 @@ function fetchDirectAudioInfo(videoId) {
     console.log(`[yt-dlp] Fetching format metadata for ${targetId}...`);
     const child = spawn(YTDLP_BIN, args, {
       env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      maxBuffer: 25 * 1024 * 1024
+      stdio: ['ignore', 'pipe', 'pipe']
     });
+
+    let isSettled = false;
+    const timeout = setTimeout(() => {
+      if (!isSettled) {
+        isSettled = true;
+        console.warn(`[yt-dlp] Process timed out after 20s for ${targetId}, terminating...`);
+        try { child.kill('SIGKILL'); } catch (e) {}
+        reject(new Error(`yt-dlp timed out after 20 seconds for ${targetId}`));
+      }
+    }, 20000);
 
     let stdout = '';
     let stderr = '';
@@ -197,10 +209,16 @@ function fetchDirectAudioInfo(videoId) {
     child.stderr.on('data', (d) => { stderr += d.toString(); });
 
     child.on('error', (err) => {
+      clearTimeout(timeout);
+      if (isSettled) return;
+      isSettled = true;
       reject(new Error(`Failed to start yt-dlp: ${err.message}`));
     });
 
     child.on('close', (code) => {
+      clearTimeout(timeout);
+      if (isSettled) return;
+      isSettled = true;
       if (code === 0) {
         try {
           const data = JSON.parse(stdout);
@@ -254,7 +272,7 @@ function streamDirectFromYtDlp(targetId, req, res) {
 
     const child = spawn(YTDLP_BIN, args, {
       env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'ignore']
     });
 
     res.status(200);
@@ -340,8 +358,8 @@ app.get('/api/search', async (req, res) => {
         const basic = info.basic_info || {};
         const song = {
           videoId,
-          title: basic.title || 'Không có tiêu đề',
-          artist: basic.author || 'Chưa rõ',
+          title: basic.title || 'Untitled',
+          artist: basic.author || 'Unknown Artist',
           album: '',
           thumbnail: upgradeThumbnail(basic.thumbnail?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`),
           duration: basic.duration ? `${Math.floor(basic.duration / 60)}:${('0' + (basic.duration % 60)).slice(-2)}` : '0:00'
@@ -393,8 +411,8 @@ app.get('/api/search', async (req, res) => {
           thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
         }
 
-        const title = typeof item.title === 'string' ? item.title : (item.title?.text || 'Không có tiêu đề');
-        let artist = 'Chưa rõ';
+        const title = typeof item.title === 'string' ? item.title : (item.title?.text || 'Untitled');
+        let artist = 'Unknown Artist';
         if (item.author?.name) {
           artist = item.author.name;
         } else if (typeof item.author === 'string') {
@@ -454,9 +472,9 @@ app.get('/api/search', async (req, res) => {
         thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
       }
 
-      let artists = 'Chưa rõ';
+      let artists = 'Unknown Artist';
       if (Array.isArray(item.artists)) {
-        artists = item.artists.map(a => a.name).filter(Boolean).join(', ') || 'Chưa rõ';
+        artists = item.artists.map(a => a.name).filter(Boolean).join(', ') || 'Unknown Artist';
       } else if (item.artists?.name) {
         artists = item.artists.name;
       } else if (item.author?.name) {
@@ -465,7 +483,7 @@ app.get('/api/search', async (req, res) => {
         artists = item.author;
       }
 
-      const title = typeof item.title === 'string' ? item.title : (item.title?.text || 'Không có tiêu đề');
+      const title = typeof item.title === 'string' ? item.title : (item.title?.text || 'Untitled');
       const album = item.album?.name || '';
       
       let duration = '0:00';
@@ -498,27 +516,27 @@ app.get('/api/stream/:videoId', async (req, res) => {
   const { videoId } = req.params;
   const rangeHeader = req.headers.range || 'Full Content';
   console.log(`\n---------------------------------------------------------`);
-  console.log(`[GET /api/stream/${videoId}] Yêu cầu stream từ Client (Range: ${rangeHeader})`);
+  console.log(`[GET /api/stream/${videoId}] Client stream request (Range: ${rangeHeader})`);
 
   if (!videoId || videoId.length < 5) {
-    console.error(`[GET /api/stream/${videoId}] videoId không hợp lệ: "${videoId}"`);
+    console.error(`[GET /api/stream/${videoId}] Invalid videoId: "${videoId}"`);
     return res.status(400).json({ error: 'Invalid videoId' });
   }
 
   let targetId = videoId;
   if (videoId === 'qRpE45b4INk') {
     targetId = 'qHpE45b4INk';
-    console.log(`[GET /api/stream] Đã ánh xạ videoId "${videoId}" -> "${targetId}"`);
+    console.log(`[GET /api/stream] Mapped videoId "${videoId}" -> "${targetId}"`);
   }
 
   async function getDirectInfo(forceRefresh = false) {
     const cached = streamCache.get(targetId);
     if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
-      console.log(`[Stream Cache HIT] Sử dụng directUrl đã lưu trong RAM cache cho ${targetId}`);
+      console.log(`[Stream Cache HIT] Using cached directUrl for ${targetId}`);
       return cached;
     }
 
-    console.log(`[Stream Cache MISS] Bắt đầu gọi yt-dlp lấy directUrl và headers cho ${targetId}...`);
+    console.log(`[Stream Cache MISS] Fetching directUrl and headers via yt-dlp for ${targetId}...`);
     const freshInfo = await fetchDirectAudioInfo(targetId);
     streamCache.set(targetId, {
       ...freshInfo,
@@ -536,7 +554,7 @@ app.get('/api/stream/:videoId', async (req, res) => {
       upstreamHeaders['Range'] = req.headers.range;
     }
 
-    console.log(`[Stream Proxy] Đang kết nối tới Google Audio CDN với User-Agent: "${upstreamHeaders['User-Agent'] || 'Default'}"`);
+    console.log(`[Stream Proxy] Connecting to Google Audio CDN with User-Agent: "${upstreamHeaders['User-Agent'] || 'Default'}"`);
 
     const controller = new AbortController();
     req.on('close', () => {
@@ -549,17 +567,17 @@ app.get('/api/stream/:videoId', async (req, res) => {
         signal: controller.signal
       });
 
-      console.log(`[Stream Proxy] Phản hồi từ Google Video: HTTP ${upstreamRes.status} (${upstreamRes.statusText})`);
+      console.log(`[Stream Proxy] Google Video response: HTTP ${upstreamRes.status} (${upstreamRes.statusText})`);
 
       if ((upstreamRes.status === 403 || upstreamRes.status === 410) && retry) {
-        console.warn(`[Stream Proxy] Google Video trả về HTTP ${upstreamRes.status} cho ${targetId}. Xóa cache và thử lấy link mới...`);
+        console.warn(`[Stream Proxy] Google Video returned HTTP ${upstreamRes.status} for ${targetId}. Clearing cache and refreshing link...`);
         streamCache.delete(targetId);
         const refreshedInfo = await getDirectInfo(true);
         return proxyStream(refreshedInfo, false);
       }
 
       if (!upstreamRes.ok && upstreamRes.status !== 206) {
-        throw new Error(`Google CDN trả về HTTP ${upstreamRes.status} (${upstreamRes.statusText})`);
+        throw new Error(`Google CDN returned HTTP ${upstreamRes.status} (${upstreamRes.statusText})`);
       }
 
       // Forward response status and headers
@@ -600,23 +618,23 @@ app.get('/api/stream/:videoId', async (req, res) => {
     const info = await getDirectInfo(false);
     await proxyStream(info);
   } catch (err) {
-    console.error(`[GET /api/stream/${videoId} PROXY LỖI]:`, err.message);
+    console.error(`[GET /api/stream/${videoId} PROXY ERROR]:`, err.message);
     
-    // Fallback: stream trực tiếp qua stdout của yt-dlp
+    // Fallback: stream directly via stdout yt-dlp
     try {
       if (!res.headersSent) {
-        console.log(`[GET /api/stream/${videoId}] Kích hoạt phương án Fallback: Stream trực tiếp qua stdout yt-dlp...`);
+        console.log(`[GET /api/stream/${videoId}] Activating fallback: streaming directly via yt-dlp stdout...`);
         await streamDirectFromYtDlp(targetId, req, res);
         return;
       }
     } catch (fallbackErr) {
-      console.error(`[GET /api/stream/${videoId} FALLBACK LỖI]:`, fallbackErr.message);
+      console.error(`[GET /api/stream/${videoId} FALLBACK ERROR]:`, fallbackErr.message);
     }
 
     if (!res.headersSent) {
       res.status(502).json({
         error: 'STREAM_FAILED',
-        message: 'Không thể phát luồng âm thanh cho bài hát này.',
+        message: 'Unable to stream audio for this track.',
         details: err.message
       });
     }
@@ -647,14 +665,14 @@ app.get('/api/upnext/:videoId', async (req, res) => {
           thumb = `https://i.ytimg.com/vi/${item.video_id}/hqdefault.jpg`;
         }
 
-        let artists = 'Chưa rõ';
+        let artists = 'Unknown Artist';
         if (item.author) {
-          artists = typeof item.author === 'string' ? item.author : item.author.name || 'Chưa rõ';
+          artists = typeof item.author === 'string' ? item.author : item.author.name || 'Unknown Artist';
         } else if (Array.isArray(item.artists)) {
-          artists = item.artists.map(a => a.name).filter(Boolean).join(', ') || 'Chưa rõ';
+          artists = item.artists.map(a => a.name).filter(Boolean).join(', ') || 'Unknown Artist';
         }
 
-        const title = item.title?.text || (typeof item.title === 'string' ? item.title : 'Không có tiêu đề');
+        const title = item.title?.text || (typeof item.title === 'string' ? item.title : 'Untitled');
         const album = item.album?.name || '';
         const duration = item.duration?.text || '0:00';
 
@@ -836,6 +854,38 @@ app.post('/api/library/playlists', (req, res) => {
   res.json({ success: true, playlist: newPlaylist, playlists: library.playlists });
 });
 
+// PUT /api/library/playlists/:id - Update playlist details (name, description, coverUrl, songs)
+app.put('/api/library/playlists/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, description, coverUrl, songs } = req.body;
+
+  const library = readLibrary();
+  const playlist = library.playlists.find(p => p.id === id);
+
+  if (!playlist) {
+    return res.status(404).json({ error: 'Playlist not found' });
+  }
+
+  if (typeof name === 'string' && name.trim()) {
+    playlist.name = name.trim();
+  }
+  if (typeof description === 'string') {
+    playlist.description = description.trim();
+  }
+  if (typeof coverUrl === 'string') {
+    playlist.coverUrl = coverUrl.trim();
+  } else if (coverUrl === null) {
+    delete playlist.coverUrl;
+  }
+  if (Array.isArray(songs)) {
+    playlist.songs = songs;
+  }
+
+  playlist.updatedAt = Date.now();
+  writeLibrary(library);
+  res.json({ success: true, playlist, playlists: library.playlists });
+});
+
 // DELETE /api/library/playlists/:id - Delete playlist
 app.delete('/api/library/playlists/:id', (req, res) => {
   const { id } = req.params;
@@ -898,7 +948,7 @@ app.post('/api/library/import', async (req, res) => {
   const { name, description, tracks } = req.body;
 
   if (!Array.isArray(tracks) || tracks.length === 0) {
-    return res.status(400).json({ error: 'Danh sách bài hát không hợp lệ hoặc trống' });
+    return res.status(400).json({ error: 'Invalid or empty tracks list' });
   }
 
   // Set SSE response headers
@@ -957,7 +1007,7 @@ app.post('/api/library/import', async (req, res) => {
               }
               if (!thumb) thumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-              let artistName = trackArtist || 'Chưa rõ';
+              let artistName = trackArtist || 'Unknown Artist';
               if (Array.isArray(first.artists)) {
                 artistName = first.artists.map(a => a.name).filter(Boolean).join(', ') || artistName;
               } else if (first.author?.name) {
@@ -987,7 +1037,7 @@ app.post('/api/library/import', async (req, res) => {
                 matchedSong = {
                   videoId,
                   title: typeof first.title === 'string' ? first.title : (first.title?.text || trackTitle),
-                  artist: first.author?.name || trackArtist || 'Chưa rõ',
+                  artist: first.author?.name || trackArtist || 'Unknown Artist',
                   album: '',
                   thumbnail: upgradeThumbnail(thumb),
                   duration: first.duration?.text || '0:00'
@@ -1021,11 +1071,11 @@ app.post('/api/library/import', async (req, res) => {
 
     if (!isAborted) {
       const library = readLibrary();
-      const playlistName = (name || `Imported Playlist ${new Date().toLocaleDateString('vi-VN')}`).trim();
+      const playlistName = (name || `Imported Playlist ${new Date().toLocaleDateString('en-US')}`).trim();
       const newPlaylist = {
         id: `pl_${Date.now()}`,
         name: playlistName,
-        description: (description || `Imported ${matchedSongs.length}/${total} bài hát`).trim(),
+        description: (description || `Imported ${matchedSongs.length}/${total} songs`).trim(),
         createdAt: Date.now(),
         songs: matchedSongs
       };
@@ -1058,7 +1108,7 @@ app.use((req, res) => {
 // Start Express server
 app.listen(PORT, () => {
   console.log(`\n======================================================`);
-  console.log(`🎵 BZusic - Trình phát nhạc cá nhân đang chạy tại:`);
+  console.log(`🎵 BZusic - Personal Music Player is running at:`);
   console.log(`   ➜ http://localhost:${PORT}`);
   console.log(`======================================================\n`);
   

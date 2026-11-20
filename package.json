@@ -4,7 +4,8 @@
   "description": "BZusic - Trình phát nhạc cá nhân phong cách YouTube Music không quảng cáo",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "sync": "node sync-cloud.js"
   },
   "keywords": [
     "music",
@@ -16,7 +17,9 @@
   "author": "BZusic Team",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
     "cors": "^2.8.5",
+    "dotenv": "^18.0.10",
     "express": "^4.21.2",
     "youtubei.js": "^18.3.0"
   }

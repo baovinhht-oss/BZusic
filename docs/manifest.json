@@ -1,0 +1,17 @@
+{
+  "name": "BZusic - Personal Ad-Free Music",
+  "short_name": "BZusic",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#030303",
+  "theme_color": "#030303",
+  "description": "Ad-free personal music player inspired by YouTube Music and Apple Music",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

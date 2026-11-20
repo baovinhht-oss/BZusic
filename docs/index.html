@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>BZusic</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="./favicon.svg">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="app-layout">
+    
+    <!-- Left Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="#" class="brand-logo" id="brand-logo" title="BZusic Home">
+          <svg class="brand-icon" viewBox="0 0 36 36" width="36" height="36" fill="none">
+            <rect width="36" height="36" rx="10" fill="url(#logoGrad)"/>
+            <path d="M15 11L25 18L15 25V11Z" fill="#ffffff"/>
+            <circle cx="27" cy="11" r="2" fill="#ff7733"/>
+            <defs>
+              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ff1e1e"/>
+                <stop offset="100%" stop-color="#ff5e00"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="brand-text">BZ<span>usic</span></span>
+        </a>
+        <button class="icon-btn mobile-close-btn" id="mobile-sidebar-close" aria-label="Close menu">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="home" id="nav-home">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+          </svg>
+          <span>Home</span>
+        </button>
+        <button class="nav-item" data-view="liked" id="nav-liked">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+          <span>Favorites</span>
+          <span class="badge" id="liked-count-badge">0</span>
+        </button>
+        <button class="nav-item" data-view="history" id="nav-history">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+          </svg>
+          <span>Listening History</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Playlists Section -->
+      <div class="sidebar-playlists-section">
+        <div class="playlists-header">
+          <span class="playlists-title">PLAYLISTS</span>
+          <div class="playlists-header-actions">
+            <button class="btn-new-playlist btn-import-playlist" id="btn-import-playlist-trigger" title="Import Playlist (Apple Music / Text)">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 15V3"/></svg>
+              <span>Import</span>
+            </button>
+            <button class="btn-new-playlist" id="btn-create-playlist-trigger" title="New Playlist">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>New</span>
+            </button>
+          </div>
+        </div>
+        <div class="playlists-list" id="sidebar-playlists-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- User Tip / Local Indicator -->
+      <div class="sidebar-footer">
+        <div class="local-badge" title="Local & Private, Ad-Free Engine">
+          <span class="status-dot"></span>
+          <span>Local Ad-Free Engine</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content">
+      
+      <!-- Top Bar -->
+      <header class="top-bar" id="top-bar">
+        <button class="icon-btn mobile-menu-btn" id="mobile-sidebar-toggle" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+
+        <div class="search-container">
+          <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <input type="text" id="search-input" class="search-input" placeholder="Search songs, remixes, mixtapes, or paste a YouTube link..." autocomplete="off">
+          <button class="search-clear-btn" id="search-clear-btn" aria-label="Clear search">✕</button>
+        </div>
+
+        <div class="top-bar-actions">
+          <button class="icon-btn" id="top-btn-now-playing" title="Now Playing">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Scrollable Views Container -->
+      <div class="views-wrapper" id="views-wrapper">
+        
+        <!-- 1. Home View -->
+        <section class="view active" id="view-home">
+          <!-- Ambient header banner -->
+          <div class="home-hero-card">
+            <div class="hero-content">
+              <span class="hero-tag">BZusic Experience</span>
+              <h1 class="hero-title" id="greeting-title">Limitless Music</h1>
+              <p class="hero-desc">Experience high-quality music from YouTube Music, completely ad-free.</p>
+              <div class="hero-actions">
+                <button class="btn btn-primary" id="hero-btn-random">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                  <span>Play Random Vibe</span>
+                </button>
+                <button class="btn btn-secondary" id="hero-btn-history">History</button>
+              </div>
+            </div>
+            <div class="hero-decoration">
+              <div class="pulse-circle"></div>
+              <div class="pulse-circle delay-1"></div>
+            </div>
+          </div>
+
+          <!-- Section: Quick Picks / Recommendations -->
+          <div class="section-block">
+            <div class="section-header">
+              <h2 class="section-title">Made for You</h2>
+              <span class="section-subtitle">Popular picks for today</span>
+            </div>
+            <div class="song-card-grid" id="home-featured-grid">
+              <!-- Dynamically populated with initial top hits -->
+            </div>
+          </div>
+
+          <!-- Section: Recently Played / Liked Preview -->
+          <div class="section-block" id="home-history-block" style="display: none;">
+            <div class="section-header">
+              <h2 class="section-title">Recently Played</h2>
+              <button class="link-btn" id="home-view-all-history">See All</button>
+            </div>
+            <div class="song-row-list" id="home-history-list"></div>
+          </div>
+        </section>
+
+        <!-- 2. Search Results View -->
+        <section class="view" id="view-search">
+          <div class="section-header search-results-header">
+            <div>
+              <h2 class="section-title" id="search-title">Search Results</h2>
+              <span class="section-subtitle" id="search-subtitle">Discover songs on YouTube & YouTube Music</span>
+            </div>
+          </div>
+          <!-- Filter pills -->
+          <div class="search-filters" id="search-filters">
+            <button class="filter-pill active" id="search-filter-all" data-mode="all">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
+              <span>All YouTube</span>
+            </button>
+            <button class="filter-pill" id="search-filter-music" data-mode="music">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+              <span>YouTube Music</span>
+            </button>
+          </div>
+          <div class="search-loading" id="search-loading" style="display: none;">
+            <div class="spinner"></div>
+            <span>Searching for tracks...</span>
+          </div>
+          <div class="search-empty" id="search-empty" style="display: none;">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.4"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <p>No songs found. Try a different search term!</p>
+          </div>
+          <div class="song-table-container">
+            <div class="song-row-list" id="search-results-list"></div>
+          </div>
+        </section>
+
+        <!-- 3. Liked Songs View -->
+        <section class="view" id="view-liked">
+          <div class="playlist-hero liked-hero">
+            <div class="playlist-hero-cover liked-cover">
+              <svg viewBox="0 0 24 24" width="64" height="64" fill="#ffffff">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            </div>
+            <div class="playlist-hero-info">
+              <span class="playlist-type">FAVORITES</span>
+              <h1 class="playlist-title">Favorite Songs</h1>
+              <p class="playlist-meta" id="liked-meta-info">0 songs • Local Storage</p>
+              <div class="playlist-actions">
+                <button class="btn btn-primary" id="btn-play-all-liked">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play All</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="song-row-list" id="liked-songs-list"></div>
+        </section>
+
+        <!-- 4. History View -->
+        <section class="view" id="view-history">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Listening History</h2>
+              <span class="section-subtitle" id="history-subtitle">Songs you recently listened to</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-clear-history">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span>Clear History</span>
+            </button>
+          </div>
+          <div class="song-row-list" id="history-songs-list"></div>
+        </section>
+
+        <!-- 5. Playlist Detail View (Apple Music Style) -->
+        <section class="view" id="view-playlist">
+          <div class="playlist-hero apple-music-hero">
+            <!-- Intelligent Cover (Single or 2x2 collage) with Hover Badge -->
+            <div class="playlist-cover-container" id="current-playlist-cover-wrap" title="Change cover">
+              <div class="playlist-hero-cover" id="current-playlist-cover">
+                <!-- Dynamically rendered: <img> or 4-image 2x2 collage or fallback SVG -->
+              </div>
+              <div class="change-cover-overlay">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                <span>Change Cover</span>
+              </div>
+            </div>
+
+            <div class="playlist-hero-info">
+              <span class="playlist-type">PLAYLIST</span>
+              <div class="playlist-title-row">
+                <h1 class="playlist-title" id="current-playlist-title">Playlist Name</h1>
+                <button class="icon-btn btn-edit-title" id="btn-edit-playlist-inline" title="Edit Details">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                </button>
+              </div>
+              <p class="playlist-desc" id="current-playlist-desc">Description</p>
+              <p class="playlist-meta" id="current-playlist-meta">0 songs • 0 min</p>
+
+              <!-- Apple Music Action Buttons: Play + Shuffle + More Menu -->
+              <div class="playlist-actions apple-actions">
+                <button class="btn btn-apple-play" id="btn-play-all-playlist" title="Play in order">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="btn btn-apple-shuffle" id="btn-shuffle-all-playlist" title="Shuffle playback">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                  <span>Shuffle</span>
+                </button>
+
+                <!-- Menu '•••' Dropdown -->
+                <div class="more-menu-wrapper" id="playlist-more-menu-wrap">
+                  <button class="btn-apple-more icon-btn" id="btn-playlist-more" title="More Options">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>
+                  </button>
+                  <div class="dropdown-menu" id="playlist-more-dropdown" style="display: none;">
+                    <button class="dropdown-item" id="menu-opt-edit-playlist">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                      <span>Edit Details</span>
+                    </button>
+                    <button class="dropdown-item" id="menu-opt-change-cover">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                      <span>Change Cover</span>
+                    </button>
+                    <button class="dropdown-item" id="menu-opt-queue-all">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                      <span>Add All to Queue</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item text-danger" id="menu-opt-delete-playlist">
+                      <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      <span>Delete Playlist</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Toolbar: Filter & Sort -->
+          <div class="playlist-toolbar">
+            <div class="playlist-filter-wrap">
+              <svg class="filter-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="playlist-filter-input" class="playlist-filter-input" placeholder="Filter in playlist..." autocomplete="off">
+              <button class="filter-clear-btn" id="playlist-filter-clear" style="display: none;">✕</button>
+              <span class="playlist-filter-count" id="playlist-filter-count"></span>
+            </div>
+
+            <div class="playlist-sort-wrap">
+              <span class="sort-label">Sort by:</span>
+              <select id="playlist-sort-select" class="custom-select playlist-sort-select">
+                <option value="default">Default Order</option>
+                <option value="title_asc">Title (A → Z)</option>
+                <option value="title_desc">Title (Z → A)</option>
+                <option value="artist_asc">Artist (A → Z)</option>
+                <option value="duration_desc">Duration (Longest)</option>
+                <option value="duration_asc">Duration (Shortest)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Tracklist Table with Apple Music Header -->
+          <div class="playlist-table-container">
+            <div class="tracklist-header">
+              <div class="th-idx">#</div>
+              <div class="th-title">SONG</div>
+              <div class="th-artist">ARTIST</div>
+              <div class="th-album">ALBUM</div>
+              <div class="th-duration">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+              </div>
+              <div class="th-actions"></div>
+            </div>
+            <div class="song-row-list playlist-table-rows" id="playlist-songs-list"></div>
+          </div>
+        </section>
+
+      </div><!-- /.views-wrapper -->
+
+      <!-- 6. Now Playing View (Full / Split Screen Modal/Overlay) -->
+      <div class="now-playing-overlay" id="now-playing-overlay">
+        <!-- Ambient Glow backdrop -->
+        <div class="ambient-glow" id="ambient-glow"></div>
+
+        <div class="now-playing-topbar">
+          <button class="icon-btn" id="btn-close-now-playing" title="Minimize (Esc)">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+          </button>
+          <span class="now-playing-topbar-title">NOW PLAYING</span>
+          <div style="width: 44px;"></div><!-- placeholder for balance -->
+        </div>
+
+        <div class="now-playing-content">
+          <!-- Left Column: Big Cover + Song Details -->
+          <div class="np-left-column">
+            <div class="np-cover-wrapper">
+              <img id="np-cover-img" src="favicon.svg" alt="Album Cover" class="np-cover-img">
+              <div class="np-cover-glow"></div>
+            </div>
+
+            <div class="np-track-details">
+              <div class="np-track-text">
+                <h2 class="np-track-title" id="np-track-title">No Track Selected</h2>
+                <p class="np-track-artist" id="np-track-artist">BZusic Player</p>
+                <p class="np-track-album" id="np-track-album"></p>
+              </div>
+
+              <div class="np-track-actions">
+                <button class="icon-btn btn-like-np" id="btn-like-np" title="Favorite this song">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                </button>
+                <button class="icon-btn" id="btn-add-to-playlist-np" title="Add to Playlist">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Mobile Dedicated Controls & Seekbar (visible on <= 768px) -->
+            <div class="np-mobile-controls-wrap" id="np-mobile-controls-wrap">
+              <div class="np-mobile-seekbar">
+                <span class="time-current" id="np-mobile-time-current">0:00</span>
+                <input type="range" class="seek-slider" id="np-mobile-seek-slider" min="0" max="100" value="0" step="0.1" aria-label="Seek progress">
+                <span class="time-total" id="np-mobile-time-total">0:00</span>
+              </div>
+              <div class="np-mobile-playback-btns">
+                <button class="icon-btn btn-ctrl" id="btn-np-shuffle" title="Shuffle">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                </button>
+                <button class="icon-btn btn-ctrl" id="btn-np-prev" title="Previous">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                </button>
+                <button class="btn-play-pause-prominent" id="btn-np-play-pause" title="Play / Pause">
+                  <svg id="icon-np-play-pause" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button class="icon-btn btn-ctrl" id="btn-np-next" title="Next">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+                <button class="icon-btn btn-ctrl" id="btn-np-repeat" title="Repeat">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+                  <span class="repeat-badge" id="np-repeat-badge" style="display: none;">1</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Tabs (Up Next / Lyrics) -->
+          <div class="np-right-column">
+            <div class="np-tabs">
+              <button class="np-tab active" data-tab="upnext" id="tab-btn-upnext">Up Next</button>
+              <button class="np-tab" data-tab="lyrics" id="tab-btn-lyrics">Lyrics</button>
+            </div>
+
+            <div class="np-tab-contents">
+              <!-- Tab 1: Up Next / Queue -->
+              <div class="tab-pane active" id="tab-pane-upnext">
+                <div class="upnext-header">
+                  <div class="autoplay-toggle">
+                    <span>Autoplay similar tracks</span>
+                    <label class="switch">
+                      <input type="checkbox" id="autoplay-toggle-checkbox" checked>
+                      <span class="slider round"></span>
+                    </label>
+                  </div>
+                </div>
+                <div class="queue-list" id="np-queue-list">
+                  <!-- Dynamically rendered queue -->
+                </div>
+              </div>
+
+              <!-- Tab 2: Synced / Plain Lyrics -->
+              <div class="tab-pane" id="tab-pane-lyrics">
+                <div class="lyrics-wrapper" id="lyrics-wrapper">
+                  <div class="lyrics-loading" id="lyrics-loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <span>Loading lyrics...</span>
+                  </div>
+                  <div class="lyrics-empty" id="lyrics-empty" style="display: none;">
+                    <p>No lyrics available for this song.</p>
+                  </div>
+                  <div class="lyrics-container" id="lyrics-container">
+                    <!-- Synced lines or plain lines inserted here -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /.now-playing-overlay -->
+
+    </main>
+
+    <!-- Bottom Fixed Player Bar -->
+    <footer class="player-bar" id="player-bar">
+      
+      <!-- Left: Song Thumbnail & Info -->
+      <div class="player-left" id="player-left-trigger" title="Click to expand/collapse Now Playing">
+        <div class="player-thumb-wrapper">
+          <img id="player-thumb" src="favicon.svg" alt="Song thumbnail" class="player-thumb">
+          <div class="expand-indicator">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/></svg>
+          </div>
+        </div>
+        <div class="player-info">
+          <div class="player-title" id="player-title">Select a track to play</div>
+          <div class="player-artist" id="player-artist">BZusic</div>
+        </div>
+        <button class="icon-btn btn-like-player" id="btn-like-player" title="Favorite">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </button>
+      </div>
+
+      <!-- Mobile Quick Controls (Play/Pause & Next) -->
+      <div class="player-mobile-controls" id="player-mobile-controls">
+        <button class="icon-btn btn-mobile-ctrl" id="btn-mobile-play-pause" title="Play/Pause">
+          <svg id="icon-mobile-play" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="icon-btn btn-mobile-ctrl" id="btn-mobile-next" title="Next">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+      </div>
+
+      <!-- Center: Controls & Seekbar -->
+      <div class="player-center">
+        <div class="player-controls">
+          <!-- Shuffle Button -->
+          <button class="icon-btn btn-ctrl" id="btn-shuffle" title="Shuffle (S)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+          </button>
+
+          <!-- Prev Button -->
+          <button class="icon-btn btn-ctrl" id="btn-prev" title="Previous (J)">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+
+          <!-- Play/Pause Prominent Button -->
+          <button class="play-pause-btn" id="btn-play-pause" title="Play/Pause (Space)">
+            <svg id="play-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="pause-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+
+          <!-- Next Button -->
+          <button class="icon-btn btn-ctrl" id="btn-next" title="Next (K)">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+
+          <!-- Repeat Button -->
+          <button class="icon-btn btn-ctrl" id="btn-repeat" title="Repeat (R)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+            <span class="repeat-one-indicator" id="repeat-one-badge" style="display: none;">1</span>
+          </button>
+        </div>
+
+        <!-- Progress Seekbar -->
+        <div class="player-progress-row">
+          <span class="time-label" id="current-time">0:00</span>
+          <div class="range-wrapper">
+            <input type="range" id="seek-slider" class="custom-slider" min="0" max="100" value="0" step="0.1" aria-label="Seek">
+            <div class="slider-fill" id="seek-slider-fill"></div>
+          </div>
+          <span class="time-label" id="total-duration">0:00</span>
+        </div>
+      </div>
+
+      <!-- Right: Volume & Overlay Toggles -->
+      <div class="player-right">
+        <!-- Volume -->
+        <div class="volume-container">
+          <button class="icon-btn" id="btn-volume-toggle" title="Mute / Unmute (M)">
+            <svg id="vol-high" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            <svg id="vol-muted" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display: none;"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+          </button>
+          <div class="volume-slider-wrapper">
+            <input type="range" id="volume-slider" class="custom-slider volume-slider" min="0" max="1" value="0.9" step="0.01" aria-label="Volume">
+            <div class="slider-fill" id="volume-slider-fill" style="width: 90%;"></div>
+          </div>
+        </div>
+
+        <!-- Open Now Playing full button -->
+        <button class="icon-btn" id="btn-toggle-now-playing" title="Now Playing">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </button>
+      </div>
+
+    </footer>
+
+    <!-- Native Audio Element -->
+    <audio id="audio-player" preload="metadata" crossorigin="anonymous"></audio>
+
+    <!-- Modal: Create Playlist -->
+    <div class="modal-backdrop" id="modal-create-playlist" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">New Playlist</h3>
+          <button class="icon-btn modal-close-btn" id="btn-close-modal-create">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="input-playlist-name">Playlist Name *</label>
+            <input type="text" id="input-playlist-name" placeholder="e.g. Weekend Chill" maxlength="60">
+          </div>
+          <div class="form-group">
+            <label for="input-playlist-desc">Description (optional)</label>
+            <textarea id="input-playlist-desc" rows="3" placeholder="Enter playlist description..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-cancel-modal-create">Cancel</button>
+          <button class="btn btn-primary" id="btn-submit-modal-create">Create</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Add to Playlist -->
+    <div class="modal-backdrop" id="modal-add-to-playlist" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Add to Playlist</h3>
+          <button class="icon-btn modal-close-btn" id="btn-close-modal-add">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-subtext" id="add-to-playlist-song-name">Choose a playlist to add this track to:</p>
+          <div class="modal-playlists-list" id="modal-playlists-list">
+            <!-- Playlist options -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-cancel-modal-add">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Import Playlist -->
+    <div class="modal-backdrop" id="modal-import-playlist" style="display: none;">
+      <div class="modal-card modal-card-lg">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 15V3"/></svg>
+            <h3 class="modal-title">Import Playlist</h3>
+          </div>
+          <button class="icon-btn modal-close-btn" id="btn-close-modal-import">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="input-import-name">New Playlist Name *</label>
+            <input type="text" id="input-import-name" placeholder="e.g. My Apple Music Favorites" maxlength="80">
+          </div>
+          <div class="form-group">
+            <label for="input-import-desc">Description (optional)</label>
+            <input type="text" id="input-import-desc" placeholder="Notes or source description..." maxlength="120">
+          </div>
+
+          <!-- Import Format Tabs -->
+          <div class="import-tabs">
+            <button class="import-tab-btn active" id="tab-btn-import-file" data-tab="file">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+              <span>Apple Music File (.json / .csv)</span>
+            </button>
+            <button class="import-tab-btn" id="tab-btn-import-text" data-tab="text">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+              <span>Paste Tracklist</span>
+            </button>
+          </div>
+
+          <!-- Tab 1: File Upload -->
+          <div class="import-tab-pane active" id="pane-import-file">
+            <div class="file-dropzone" id="file-dropzone">
+              <input type="file" id="input-import-file" accept=".json,.csv" style="display: none;">
+              <svg viewBox="0 0 24 24" width="38" height="38" stroke="currentColor" stroke-width="1.8" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              <p class="dropzone-text">Drag and drop a <strong>.json</strong> or <strong>.csv</strong> file here, or <span class="browse-link" id="dropzone-browse-link">browse from computer</span></p>
+              <span class="dropzone-hint">Supports Apple Music export from privacy.apple.com or any tracklist CSV</span>
+            </div>
+            <div class="file-selected-info" id="file-selected-info" style="display: none;">
+              <div class="file-info-badge">
+                <span class="file-name" id="import-file-name">filename.json</span>
+                <span class="file-count" id="import-file-tracks-count">0 songs</span>
+              </div>
+              <button class="icon-btn btn-sm" id="btn-remove-selected-file" title="Remove selected file">✕</button>
+            </div>
+            <div class="form-group" id="import-playlist-select-group" style="display: none; margin-top: 12px;">
+              <label for="select-import-playlist">Select playlist from file (multiple detected):</label>
+              <select id="select-import-playlist" class="custom-select"></select>
+            </div>
+          </div>
+
+          <!-- Tab 2: Textarea Input -->
+          <div class="import-tab-pane" id="pane-import-text" style="display: none;">
+            <label for="textarea-import-text" class="text-hint">One song per line as <code>Song Title - Artist Name</code> or <code>Song Title</code>:</label>
+            <textarea id="textarea-import-text" rows="6" placeholder="Starboy - The Weeknd&#10;Shape of You - Ed Sheeran&#10;Waiting For Love - Avicii&#10;Save Your Tears - The Weeknd"></textarea>
+            <div class="text-tracks-preview" id="text-tracks-preview">Detected: 0 songs</div>
+          </div>
+
+          <!-- Progress & Status Box -->
+          <div class="import-progress-box" id="import-progress-box" style="display: none;">
+            <div class="import-progress-header">
+              <span class="import-status-text" id="import-status-text">Preparing...</span>
+              <span class="import-percent" id="import-percent">0%</span>
+            </div>
+            <div class="import-progress-bar-wrap">
+              <div class="import-progress-bar" id="import-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div class="import-stats-row">
+              <span class="stat-item success">✔ Matched: <strong id="import-stat-matched">0</strong></span>
+              <span class="stat-item failed">✕ Not Found: <strong id="import-stat-failed">0</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-cancel-modal-import">Cancel</button>
+          <button class="btn btn-primary" id="btn-start-import">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span>Start Import</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Edit Playlist Info -->
+    <div class="modal-backdrop" id="modal-edit-playlist" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Edit Details</h3>
+          <button class="icon-btn modal-close-btn" id="btn-close-modal-edit">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="input-edit-playlist-name">Playlist Name *</label>
+            <input type="text" id="input-edit-playlist-name" placeholder="Playlist name..." maxlength="80">
+          </div>
+          <div class="form-group">
+            <label for="input-edit-playlist-desc">Description (optional)</label>
+            <textarea id="input-edit-playlist-desc" rows="3" placeholder="Add an optional description..." maxlength="300"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-cancel-modal-edit">Cancel</button>
+          <button class="btn btn-primary btn-apple" id="btn-submit-modal-edit">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Change Playlist Cover -->
+    <div class="modal-backdrop" id="modal-change-cover" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Change Cover</h3>
+          <button class="icon-btn modal-close-btn" id="btn-close-modal-cover">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="cover-modal-preview-box">
+            <div class="cover-preview-img-wrap" id="cover-preview-img-wrap">
+              <img id="cover-modal-preview-img" src="" alt="Cover preview" style="display: none;">
+              <div class="cover-preview-placeholder" id="cover-preview-placeholder">
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                <span>No custom cover selected</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabs: Upload or URL -->
+          <div class="import-tabs" style="margin-top: 16px;">
+            <button class="import-tab-btn active" id="tab-cover-upload" data-tab="upload">Upload from Computer</button>
+            <button class="import-tab-btn" id="tab-cover-url" data-tab="url">Paste Image URL</button>
+          </div>
+
+          <!-- Tab 1: Upload from local -->
+          <div class="cover-tab-pane active" id="pane-cover-upload">
+            <input type="file" id="input-cover-file" accept="image/*" style="display: none;">
+            <button class="btn btn-secondary" id="btn-browse-cover-file" style="width: 100%; justify-content: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              <span>Choose image file...</span>
+            </button>
+            <span class="dropzone-hint" style="display: block; text-align: center; margin-top: 6px;">Supports JPG, PNG, WEBP, GIF (square image recommended)</span>
+          </div>
+
+          <!-- Tab 2: URL input -->
+          <div class="cover-tab-pane" id="pane-cover-url" style="display: none;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <input type="url" id="input-cover-url-val" placeholder="https://example.com/cover.jpg">
+            </div>
+          </div>
+
+          <div class="cover-modal-actions-row" style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <button class="btn btn-secondary btn-sm" id="btn-reset-cover-collage" title="Reset to 2x2 collage">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z"/></svg>
+              <span>Reset to 2x2 Collage</span>
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btn-cancel-modal-cover">Cancel</button>
+          <button class="btn btn-primary btn-apple" id="btn-submit-modal-cover">Save Cover</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+  </div><!-- /.app-layout -->
+
+  <script src="cloud-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
