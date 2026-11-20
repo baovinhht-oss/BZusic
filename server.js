@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const { Readable, pipeline } = require('stream');
 const { spawn } = require('child_process');
 const { Innertube, UniversalCache } = require('youtubei.js');
 
@@ -43,7 +44,13 @@ if (!fs.existsSync(LIBRARY_FILE)) {
 // Library helper functions
 function readLibrary() {
   try {
+    if (!fs.existsSync(LIBRARY_FILE)) {
+      return { liked: [], playlists: [], history: [] };
+    }
     const raw = fs.readFileSync(LIBRARY_FILE, 'utf8');
+    if (!raw.trim()) {
+      return { liked: [], playlists: [], history: [] };
+    }
     const data = JSON.parse(raw);
     return {
       liked: Array.isArray(data.liked) ? data.liked : [],
@@ -51,12 +58,24 @@ function readLibrary() {
       history: Array.isArray(data.history) ? data.history : []
     };
   } catch (err) {
-    console.error('[Library] Error reading library file:', err.message);
+    console.error('[Library] CRITICAL: Error reading or parsing library file:', err.message);
+    if (err.code !== 'ENOENT' && fs.existsSync(LIBRARY_FILE)) {
+      try {
+        const backupFile = `${LIBRARY_FILE}.corrupt.${Date.now()}.bak`;
+        fs.copyFileSync(LIBRARY_FILE, backupFile);
+        console.error(`[Library] Backup created before aborting: ${backupFile}`);
+      } catch (e) {}
+      throw new Error(`Corrupted library.json: ${err.message}. Operation aborted to protect library data.`);
+    }
     return { liked: [], playlists: [], history: [] };
   }
 }
 
 function writeLibrary(data) {
+  if (!data || typeof data !== 'object') {
+    console.error('[Library] Refusing to write invalid library data');
+    return false;
+  }
   try {
     const tempFile = path.join(DATA_DIR, 'library.json.tmp');
     fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf8');
@@ -156,7 +175,7 @@ console.log(`[BZusic Backend] Deno runtime resolved: ${DENO_BIN}`);
 try {
   const denoDir = path.dirname(DENO_BIN);
   if (fs.existsSync(denoDir)) {
-    process.env.PATH = `${denoDir};${process.env.PATH}`;
+    process.env.PATH = `${denoDir}${path.delimiter}${process.env.PATH}`;
   }
 } catch (e) {
   // Ignore
@@ -272,18 +291,22 @@ function streamDirectFromYtDlp(targetId, req, res) {
 
     const child = spawn(YTDLP_BIN, args, {
       env: process.env,
-      stdio: ['ignore', 'pipe', 'ignore']
+      stdio: ['ignore', 'pipe', 'pipe']
     });
+
+    let stderr = '';
+    child.stderr.on('data', d => { stderr += d.toString(); });
 
     res.status(200);
     res.setHeader('Content-Type', 'audio/mp4');
-    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'no-cache');
 
     child.stdout.pipe(res);
 
-    req.on('close', () => {
-      try { child.kill(); } catch (e) {}
+    res.on('close', () => {
+      if (!res.writableFinished) {
+        try { child.kill('SIGKILL'); } catch (e) {}
+      }
     });
 
     child.on('error', (err) => {
@@ -296,7 +319,9 @@ function streamDirectFromYtDlp(targetId, req, res) {
         console.log(`[Stream Fallback Done] Finished piping ${targetId}`);
         resolve();
       } else {
-        reject(new Error(`yt-dlp stream pipe exited with code ${code}`));
+        const cleanErr = stderr.trim().split(/\r?\n/).find(l => l.includes('ERROR:')) || stderr.trim().split(/\r?\n/)[0] || `yt-dlp stream pipe exited with code ${code}`;
+        console.error(`[Stream Fallback Failed] ${targetId}: ${cleanErr}`);
+        reject(new Error(cleanErr));
       }
     });
   });
@@ -518,9 +543,9 @@ app.get('/api/stream/:videoId', async (req, res) => {
   console.log(`\n---------------------------------------------------------`);
   console.log(`[GET /api/stream/${videoId}] Client stream request (Range: ${rangeHeader})`);
 
-  if (!videoId || videoId.length < 5) {
+  if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
     console.error(`[GET /api/stream/${videoId}] Invalid videoId: "${videoId}"`);
-    return res.status(400).json({ error: 'Invalid videoId' });
+    return res.status(400).json({ error: 'Invalid videoId format' });
   }
 
   let targetId = videoId;
@@ -557,8 +582,10 @@ app.get('/api/stream/:videoId', async (req, res) => {
     console.log(`[Stream Proxy] Connecting to Google Audio CDN with User-Agent: "${upstreamHeaders['User-Agent'] || 'Default'}"`);
 
     const controller = new AbortController();
-    req.on('close', () => {
-      controller.abort();
+    res.on('close', () => {
+      if (!res.writableFinished) {
+        controller.abort();
+      }
     });
 
     try {
@@ -595,16 +622,21 @@ app.get('/api/stream/:videoId', async (req, res) => {
         return res.end();
       }
 
-      // Stream body to client
-      const reader = upstreamRes.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!res.writableEnded) {
-          res.write(value);
-        }
-      }
-      res.end();
+      // Stream body to client with backpressure
+      const nodeStream = Readable.fromWeb(upstreamRes.body);
+      await new Promise((resolve, reject) => {
+        pipeline(nodeStream, res, (err) => {
+          if (err) {
+            if (err.name === 'AbortError' || err.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+              resolve();
+            } else {
+              reject(err);
+            }
+          } else {
+            resolve();
+          }
+        });
+      });
     } catch (err) {
       if (err.name === 'AbortError') {
         // Client aborted/seeked - normal behavior
@@ -637,6 +669,8 @@ app.get('/api/stream/:videoId', async (req, res) => {
         message: 'Unable to stream audio for this track.',
         details: err.message
       });
+    } else if (!res.writableEnded) {
+      res.destroy();
     }
   }
 });
@@ -1102,6 +1136,9 @@ app.post('/api/library/import', async (req, res) => {
 
 // Fallback for SPA routing
 app.use((req, res) => {
+  if (/\.(js|css|json|svg|png|jpg|jpeg|gif|webp|ico|map|woff2?|ttf|m4a|mp3)$/i.test(req.path)) {
+    return res.status(404).type('text/plain').send('File not found');
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

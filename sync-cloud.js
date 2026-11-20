@@ -97,7 +97,7 @@ const COOKIES_FILE = getCookiesPath();
 try {
   const denoDir = path.dirname(DENO_BIN);
   if (fs.existsSync(denoDir)) {
-    process.env.PATH = `${denoDir};${process.env.PATH}`;
+    process.env.PATH = `${denoDir}${path.delimiter}${process.env.PATH}`;
   }
 } catch (e) {}
 
@@ -134,7 +134,11 @@ function downloadAudioYtDlp(videoId, outputPath) {
 
     const args = [
       '--js-runtimes', `deno:${DENO_BIN}`,
-      '-f', 'bestaudio[ext=m4a]/bestaudio',
+      '-f', 'ba[ext=m4a]/bestaudio',
+      '--extract-audio',
+      '--audio-format', 'm4a',
+      '--audio-quality', '0',
+      '--remux-video', 'm4a',
       '-o', outputPath,
       '--no-playlist'
     ];
@@ -184,15 +188,21 @@ function downloadAudioYtDlp(videoId, outputPath) {
 // Helper: Fetch lyrics from LRCLIB
 async function fetchLyricsLrcLib(title, artist) {
   try {
-    const cleanTitle = title.replace(/\([^)]*\)|\[[^\]]*\]/g, '').trim();
-    const cleanArtist = artist.split(/[,&xX]/)[0].trim();
+    const cleanTitle = (title || '')
+      .replace(/\s*[\(\[](official|audio|video|mv|visualizer|lyric|lyrics|m\/v|remix).*?[\)\]]/gi, '')
+      .replace(/\s*feat\..*$/i, '')
+      .replace(/\([^)]*\)|\[[^\]]*\]/g, '')
+      .trim();
+    const cleanArtist = (artist || '').split(/[,&xX]/)[0].trim();
+
+    // 1. Try exact get
     const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
+    const timer = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'BZusic-CloudSync/1.0 (https://github.com)' }
+      headers: { 'User-Agent': 'BZmusic/1.0 (https://github.com)' }
     });
     clearTimeout(timer);
 
@@ -203,6 +213,27 @@ async function fetchLyricsLrcLib(title, artist) {
       }
       if (data.plainLyrics && data.plainLyrics.trim()) {
         return data.plainLyrics.trim();
+      }
+    }
+
+    // 2. Fallback: Search endpoint
+    const searchQuery = `${cleanTitle} ${cleanArtist}`.trim();
+    const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`;
+    const sController = new AbortController();
+    const sTimer = setTimeout(() => sController.abort(), 10000);
+    const searchRes = await fetch(searchUrl, {
+      signal: sController.signal,
+      headers: { 'User-Agent': 'BZmusic/1.0 (https://github.com)' }
+    });
+    clearTimeout(sTimer);
+
+    if (searchRes.ok) {
+      const list = await searchRes.json();
+      if (Array.isArray(list) && list.length > 0) {
+        const match = list.find(item => item.syncedLyrics || item.plainLyrics);
+        if (match) {
+          return (match.syncedLyrics && match.syncedLyrics.trim()) || (match.plainLyrics && match.plainLyrics.trim()) || null;
+        }
       }
     }
   } catch (e) {
@@ -381,6 +412,35 @@ async function main() {
     })),
     history: (library.history || []).map(attachCloudUrls)
   };
+
+  // Upload Base64 playlist covers to Supabase Storage covers/ folder
+  console.log('\n🖼️  Checking and uploading playlist covers to Supabase Storage...');
+  for (const pl of cloudLibrary.playlists) {
+    if (pl.coverUrl && typeof pl.coverUrl === 'string' && pl.coverUrl.startsWith('data:image/')) {
+      const match = pl.coverUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+      if (match) {
+        const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+        const buffer = Buffer.from(match[2], 'base64');
+        const fileName = `${pl.id}.${ext}`;
+        try {
+          const { error: coverErr } = await supabase.storage
+            .from(SUPABASE_BUCKET)
+            .upload(`covers/${fileName}`, buffer, {
+              contentType: `image/${match[1]}`,
+              upsert: true
+            });
+          if (!coverErr) {
+            pl.coverUrl = `${cloudBase}/covers/${fileName}`;
+            console.log(`   ✅ Uploaded playlist cover: covers/${fileName}`);
+          } else {
+            console.warn(`   ⚠️ Could not upload cover for playlist ${pl.id}:`, coverErr.message);
+          }
+        } catch (e) {
+          console.warn(`   ⚠️ Error uploading cover for playlist ${pl.id}:`, e.message);
+        }
+      }
+    }
+  }
 
   const { error: libUploadErr } = await supabase.storage
     .from(SUPABASE_BUCKET)

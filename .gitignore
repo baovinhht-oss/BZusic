@@ -3,5 +3,8 @@ node_modules/
 .env
 temp_downloads/
 cookies.txt
+data/cookies.txt
+data/*.bak
+data/*.corrupt.*.bak
 data/library.json.tmp
 bzusic-code-review.txt

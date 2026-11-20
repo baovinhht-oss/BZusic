@@ -7,7 +7,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>BZusic</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="apple-touch-icon" href="./favicon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -390,7 +391,7 @@
                 <button class="icon-btn btn-ctrl" id="btn-np-prev" title="Previous">
                   <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
                 </button>
-                <button class="btn-play-pause-prominent" id="btn-np-play-pause" title="Play / Pause">
+                <button class="btn-play-pause-prominent play-pause-btn" id="btn-np-play-pause" title="Play / Pause">
                   <svg id="icon-np-play-pause" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 </button>
                 <button class="icon-btn btn-ctrl" id="btn-np-next" title="Next">
@@ -545,7 +546,7 @@
     </footer>
 
     <!-- Native Audio Element -->
-    <audio id="audio-player" preload="metadata" crossorigin="anonymous"></audio>
+    <audio id="audio-player" preload="metadata"></audio>
 
     <!-- Modal: Create Playlist -->
     <div class="modal-backdrop" id="modal-create-playlist" style="display: none;">

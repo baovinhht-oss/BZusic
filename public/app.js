@@ -16,8 +16,7 @@
       window.location.hostname.endsWith('.surge.sh') ||
       window.location.hostname.endsWith('.vercel.app') ||
       window.location.hostname.endsWith('.netlify.app') ||
-      new URLSearchParams(window.location.search).get('cloud') === '1' ||
-      (!['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000')
+      new URLSearchParams(window.location.search).get('cloud') === '1'
     )
   );
 
@@ -57,6 +56,7 @@
 
     // Search & lyrics state
     searchMode: 'all',
+    searchAbortController: null,
     isUserScrollingLyrics: false,
     userScrollTimeout: null,
     karaokeRafId: null,
@@ -314,6 +314,7 @@
     if (IS_CLOUD_MODE) {
       if (el.localBadgeText) el.localBadgeText.textContent = 'Cloud Ad-Free Engine';
       if (el.localBadgeContainer) el.localBadgeContainer.title = 'Cloud CDN & Supabase Storage, Ad-Free Engine';
+      if (el.btnImportPlaylistTrigger) el.btnImportPlaylistTrigger.style.display = 'none';
     }
   }
 
@@ -819,9 +820,26 @@
               if (s && s.videoId && !cloudLikedIds.has(s.videoId)) mergedLiked.push(s);
             });
 
-            const mergedPlaylists = (cloudData.playlists || []).map(pl => {
-              const localPl = localPlaylists.find(p => p.id === pl.id);
-              return localPl || pl;
+            const mergedPlaylists = (cloudData.playlists || []).map(cloudPl => {
+              const localPl = localPlaylists.find(p => p.id === cloudPl.id);
+              if (!localPl) return cloudPl;
+
+              // Merge songs: cloud songs first, then any local-only songs added on mobile
+              const songMap = new Map();
+              (cloudPl.songs || []).forEach(s => { if (s && s.videoId) songMap.set(s.videoId, s); });
+              (localPl.songs || []).forEach(s => {
+                if (s && s.videoId && !songMap.has(s.videoId)) {
+                  songMap.set(s.videoId, s);
+                }
+              });
+
+              return {
+                ...cloudPl,
+                name: localPl.name || cloudPl.name,
+                description: localPl.description || cloudPl.description,
+                coverUrl: cloudPl.coverUrl || localPl.coverUrl || '',
+                songs: Array.from(songMap.values())
+              };
             });
             const cloudPlIds = new Set(mergedPlaylists.map(p => p.id));
             localPlaylists.forEach(pl => {
@@ -2921,6 +2939,10 @@
   let importAbortController = null;
 
   function openImportModal() {
+    if (IS_CLOUD_MODE) {
+      showToast('Playlist Import is only available in Local Mode via desktop server.');
+      return;
+    }
     el.modalImportPlaylist.style.display = 'flex';
     resetImportModal();
     el.inputImportName.focus();
@@ -3166,6 +3188,10 @@
   }
 
   async function handleStartImport() {
+    if (IS_CLOUD_MODE) {
+      showToast('Playlist Import is only available in Local Mode via desktop server.');
+      return;
+    }
     if (isImporting) return;
 
     const name = el.inputImportName.value.trim();
