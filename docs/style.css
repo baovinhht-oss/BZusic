@@ -153,8 +153,11 @@ button, a, input[type="range"], .nav-item, .song-row {
   color: #ff3b30;
 }
 
-.mobile-close-btn {
-  display: none;
+.mobile-close-btn,
+.mobile-menu-btn,
+.icon-btn.mobile-close-btn,
+.icon-btn.mobile-menu-btn {
+  display: none !important;
 }
 
 /* Navigation Links */
@@ -381,7 +384,7 @@ button, a, input[type="range"], .nav-item, .song-row {
 }
 
 .mobile-menu-btn {
-  display: none;
+  display: none !important;
 }
 
 .search-container {
@@ -2752,8 +2755,11 @@ input:checked + .slider:before { transform: translateX(20px); }
   .sidebar.mobile-open {
     left: 0;
   }
-  .mobile-close-btn, .mobile-menu-btn {
-    display: inline-flex;
+  .mobile-close-btn,
+  .mobile-menu-btn,
+  .icon-btn.mobile-close-btn,
+  .icon-btn.mobile-menu-btn {
+    display: inline-flex !important;
   }
 
   /* Views Wrapper with Bottom Insets */

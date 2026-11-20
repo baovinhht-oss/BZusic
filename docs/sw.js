@@ -1,5 +1,5 @@
 // BZusic Service Worker - App Shell Caching & iOS PWA Support
-const CACHE_NAME = 'bzusic-v1';
+const CACHE_NAME = 'bzusic-v2';
 
 const APP_SHELL_ASSETS = [
   './',

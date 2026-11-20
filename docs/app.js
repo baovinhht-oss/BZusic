@@ -372,6 +372,19 @@
   }
 
   // ==========================================
+  // Sidebar Controls (Desktop & Mobile Drawer)
+  // ==========================================
+  function openSidebar() {
+    if (el.sidebar) el.sidebar.classList.add('mobile-open');
+    if (el.sidebarBackdrop) el.sidebarBackdrop.classList.add('active');
+  }
+
+  function closeSidebar() {
+    if (el.sidebar) el.sidebar.classList.remove('mobile-open');
+    if (el.sidebarBackdrop) el.sidebarBackdrop.classList.remove('active');
+  }
+
+  // ==========================================
   // Event Bindings
   // ==========================================
   function bindEvents() {
@@ -385,16 +398,6 @@
     });
 
     // Mobile Sidebar
-    function openSidebar() {
-      if (el.sidebar) el.sidebar.classList.add('mobile-open');
-      if (el.sidebarBackdrop) el.sidebarBackdrop.classList.add('active');
-    }
-
-    function closeSidebar() {
-      if (el.sidebar) el.sidebar.classList.remove('mobile-open');
-      if (el.sidebarBackdrop) el.sidebarBackdrop.classList.remove('active');
-    }
-
     if (el.mobileSidebarToggle) el.mobileSidebarToggle.addEventListener('click', openSidebar);
     if (el.mobileSidebarClose) el.mobileSidebarClose.addEventListener('click', closeSidebar);
     if (el.sidebarBackdrop) el.sidebarBackdrop.addEventListener('click', closeSidebar);
@@ -2623,6 +2626,7 @@
         if (state.isNowPlayingOpen) {
           closeNowPlaying();
         }
+        closeSidebar();
         renderPlaylistView(pl.id);
       });
 
@@ -3598,6 +3602,8 @@
       }
       if (isAnyModalOpen()) {
         closeAllActiveModals();
+      } else if (el.sidebar && el.sidebar.classList.contains('mobile-open')) {
+        closeSidebar();
       } else if (state.isNowPlayingOpen) {
         closeNowPlaying();
       }

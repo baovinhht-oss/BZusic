@@ -1043,38 +1043,28 @@
       "name": "Tuyển tập BZusic Vibe",
       "description": "Những giai điệu tuyệt vời được chọn lọc cho bạn",
       "createdAt": 1700000000000,
-      "songs": [
-        {
-          "videoId": "qHpE45b4INk",
-          "title": "Nơi Này Có Anh",
-          "artist": "Sơn Tùng M-TP",
-          "album": "Nơi Này Có Anh",
-          "thumbnail": "https://yt3.googleusercontent.com/guPkUMfq6XoStEBVJwwWMD5dttVFgi0OXpzHZ0hvPD0kWxdVkrMbMCBNRDZlUy_N953vMI_r-6x1X_IEWQ=w544-h544-l90-rj",
-          "duration": "4:21",
-          "addedAt": 1700000000000
-        },
-        {
-          "videoId": "nugmZqIP0uk",
-          "title": "See You Again (feat. Charlie Puth)",
-          "artist": "Wiz Khalifa",
-          "album": "Nine Track Mind",
-          "thumbnail": "https://yt3.googleusercontent.com/TlXKDSRGrj0ogqmGbzyGvZrsT9T0F6xgV-2-3pelbzRms0cODdb-ndDg6SpFzkHYMb4NMMMW957wmrObfw=w544-h544-l90-rj",
-          "duration": "3:50",
-          "addedAt": 1700000001000
-        },
-        {
-          "videoId": "dQw4w9WgXcQ",
-          "title": "Never Gonna Give You Up",
-          "artist": "Rick Astley",
-          "album": "Whenever You Need Somebody",
-          "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
-          "duration": "3:33",
-          "addedAt": 1700000002000
-        }
-      ]
+      "songs": []
     }
   ],
   "history": [
+    {
+      "videoId": "Fwsl_XS4sYQ",
+      "title": "Exit Sign",
+      "artist": "HIEUTHUHAI",
+      "album": "Ai Cũng Phải Bắt Đầu Từ Đâu Đó",
+      "thumbnail": "https://yt3.googleusercontent.com/IKU5_egSOMdLYBfLI3uXBrvoU6WEIz3XwEdQuwUu62hNC0_Kd5hbPORBWQ1l5XG91rfHJtc-h6zGDHkM=w544-h544-l90-rj",
+      "duration": "3:22",
+      "playedAt": 1795165142787
+    },
+    {
+      "videoId": "skvHQIt-XyI",
+      "title": "xương rồng (intro)",
+      "artist": "Dangrangto, DONAL",
+      "album": "trái tim băng bó",
+      "thumbnail": "https://yt3.googleusercontent.com/bio5yni43VDbku_kSYxyK6n31Pys0PCvyRlqXHRj1e800MWHs3avp1IHGXdAgliWQfmnsXOye4TZfJo=w544-h544-l90-rj",
+      "duration": "4:06",
+      "playedAt": 1795165123819
+    },
     {
       "videoId": "YI1d0klj8J0",
       "title": "SECRET (feat. Quang Hùng MasterD, CODYNAMVO, CongB & Wren Evans)",
@@ -1201,15 +1191,6 @@
       "thumbnail": "https://yt3.googleusercontent.com/pshcr1f39wooX5vIpwpKnDnxSpvlAs_7-_Mp1XjhnUuzfU__K8_RR4M9VxXRCXpk8FJ4OP4pDqQmG5U=w544-h544-l90-rj",
       "duration": "3:44",
       "playedAt": 1795112939901
-    },
-    {
-      "videoId": "Fwsl_XS4sYQ",
-      "title": "Exit Sign",
-      "artist": "HIEUTHUHAI",
-      "album": "Ai Cũng Phải Bắt Đầu Từ Đâu Đó",
-      "thumbnail": "https://yt3.googleusercontent.com/IKU5_egSOMdLYBfLI3uXBrvoU6WEIz3XwEdQuwUu62hNC0_Kd5hbPORBWQ1l5XG91rfHJtc-h6zGDHkM=w544-h544-l90-rj",
-      "duration": "3:22",
-      "playedAt": 1795112832434
     },
     {
       "videoId": "ZWut57wYBd8",
