@@ -1138,24 +1138,17 @@
   function playTracklist(tracklist, startIndex = 0, shuffle = false) {
     if (!tracklist || tracklist.length === 0) return;
 
-    let listToPlay = [...tracklist];
     let startIdx = startIndex;
-
     if (shuffle) {
       state.isShuffle = true;
-      el.btnShuffle.classList.add('active');
-      // Fisher-Yates shuffle
-      for (let i = listToPlay.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [listToPlay[i], listToPlay[j]] = [listToPlay[j], listToPlay[i]];
-      }
-      startIdx = 0;
+      startIdx = Math.floor(Math.random() * tracklist.length);
     } else {
       state.isShuffle = false;
-      el.btnShuffle.classList.remove('active');
     }
+    el.btnShuffle.classList.toggle('active', state.isShuffle);
+    if (el.btnNpShuffle) el.btnNpShuffle.classList.toggle('active', state.isShuffle);
 
-    playSong(listToPlay[startIdx], listToPlay, startIdx);
+    playSong(tracklist[startIdx], tracklist, startIdx);
   }
 
   function togglePlayPause() {
@@ -1331,8 +1324,10 @@
 
     try {
       const res = await fetch(`/api/upnext/${videoId}`);
+      if (state.currentTrack?.videoId !== videoId) return;
       if (res.ok) {
         const data = await res.json();
+        if (state.currentTrack?.videoId !== videoId) return;
         const newTracks = data.tracks || [];
 
         // Deduplicate against existing queue
@@ -2054,12 +2049,20 @@
       return;
     }
 
+    if (state.searchAbortController) {
+      try { state.searchAbortController.abort(); } catch (e) {}
+    }
+    state.searchAbortController = new AbortController();
+    const signal = state.searchAbortController.signal;
+
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=${state.searchMode}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=${state.searchMode}`, { signal });
+      if (signal.aborted) return;
       el.searchLoading.style.display = 'none';
 
       if (res.ok) {
         const data = await res.json();
+        if (signal.aborted) return;
         const results = data.results || [];
         if (results.length > 0) {
           renderSongRows(el.searchResultsList, results, (song, idx) => {
@@ -2072,6 +2075,7 @@
         el.searchEmpty.style.display = 'flex';
       }
     } catch (err) {
+      if (err.name === 'AbortError' || signal.aborted) return;
       el.searchLoading.style.display = 'none';
       el.searchEmpty.style.display = 'flex';
     }
