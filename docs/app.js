@@ -16,8 +16,7 @@
       window.location.hostname.endsWith('.surge.sh') ||
       window.location.hostname.endsWith('.vercel.app') ||
       window.location.hostname.endsWith('.netlify.app') ||
-      new URLSearchParams(window.location.search).get('cloud') === '1' ||
-      (!['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000')
+      new URLSearchParams(window.location.search).get('cloud') === '1'
     )
   );
 
@@ -57,6 +56,7 @@
 
     // Search & lyrics state
     searchMode: 'all',
+    searchAbortController: null,
     isUserScrollingLyrics: false,
     userScrollTimeout: null,
     karaokeRafId: null,
@@ -314,6 +314,7 @@
     if (IS_CLOUD_MODE) {
       if (el.localBadgeText) el.localBadgeText.textContent = 'Cloud Ad-Free Engine';
       if (el.localBadgeContainer) el.localBadgeContainer.title = 'Cloud CDN & Supabase Storage, Ad-Free Engine';
+      if (el.btnImportPlaylistTrigger) el.btnImportPlaylistTrigger.style.display = 'none';
     }
   }
 
@@ -819,9 +820,26 @@
               if (s && s.videoId && !cloudLikedIds.has(s.videoId)) mergedLiked.push(s);
             });
 
-            const mergedPlaylists = (cloudData.playlists || []).map(pl => {
-              const localPl = localPlaylists.find(p => p.id === pl.id);
-              return localPl || pl;
+            const mergedPlaylists = (cloudData.playlists || []).map(cloudPl => {
+              const localPl = localPlaylists.find(p => p.id === cloudPl.id);
+              if (!localPl) return cloudPl;
+
+              // Merge songs: cloud songs first, then any local-only songs added on mobile
+              const songMap = new Map();
+              (cloudPl.songs || []).forEach(s => { if (s && s.videoId) songMap.set(s.videoId, s); });
+              (localPl.songs || []).forEach(s => {
+                if (s && s.videoId && !songMap.has(s.videoId)) {
+                  songMap.set(s.videoId, s);
+                }
+              });
+
+              return {
+                ...cloudPl,
+                name: localPl.name || cloudPl.name,
+                description: localPl.description || cloudPl.description,
+                coverUrl: cloudPl.coverUrl || localPl.coverUrl || '',
+                songs: Array.from(songMap.values())
+              };
             });
             const cloudPlIds = new Set(mergedPlaylists.map(p => p.id));
             localPlaylists.forEach(pl => {
@@ -1120,24 +1138,17 @@
   function playTracklist(tracklist, startIndex = 0, shuffle = false) {
     if (!tracklist || tracklist.length === 0) return;
 
-    let listToPlay = [...tracklist];
     let startIdx = startIndex;
-
     if (shuffle) {
       state.isShuffle = true;
-      el.btnShuffle.classList.add('active');
-      // Fisher-Yates shuffle
-      for (let i = listToPlay.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [listToPlay[i], listToPlay[j]] = [listToPlay[j], listToPlay[i]];
-      }
-      startIdx = 0;
+      startIdx = Math.floor(Math.random() * tracklist.length);
     } else {
       state.isShuffle = false;
-      el.btnShuffle.classList.remove('active');
     }
+    el.btnShuffle.classList.toggle('active', state.isShuffle);
+    if (el.btnNpShuffle) el.btnNpShuffle.classList.toggle('active', state.isShuffle);
 
-    playSong(listToPlay[startIdx], listToPlay, startIdx);
+    playSong(tracklist[startIdx], tracklist, startIdx);
   }
 
   function togglePlayPause() {
@@ -1181,12 +1192,12 @@
       state.queueIndex++;
       playSong(state.queue[state.queueIndex]);
     } else {
-      if (state.repeatMode === 'all') {
+      if (state.repeatMode === 'all' || (state.autoplay && state.queue.length > 0)) {
         state.queueIndex = 0;
         playSong(state.queue[0]);
-      } else if (state.autoplay && state.currentTrack) {
-        // Fetch fresh Up Next and continue playing
-        fetchAndAppendUpNext(state.currentTrack.videoId, true);
+        if (state.autoplay && state.currentTrack) {
+          fetchAndAppendUpNext(state.currentTrack.videoId);
+        }
       } else {
         showToast('End of queue reached');
       }
@@ -1313,8 +1324,10 @@
 
     try {
       const res = await fetch(`/api/upnext/${videoId}`);
+      if (state.currentTrack?.videoId !== videoId) return;
       if (res.ok) {
         const data = await res.json();
+        if (state.currentTrack?.videoId !== videoId) return;
         const newTracks = data.tracks || [];
 
         // Deduplicate against existing queue
@@ -1355,6 +1368,7 @@
     }
     if (navigator.mediaSession) {
       navigator.mediaSession.playbackState = 'playing';
+      updateMediaSessionPositionState();
     }
   }
 
@@ -1365,6 +1379,7 @@
     updateDocumentTitle('', '', false);
     if (navigator.mediaSession) {
       navigator.mediaSession.playbackState = 'paused';
+      updateMediaSessionPositionState();
     }
   }
 
@@ -1809,6 +1824,8 @@
 
   function renderSyncedLyrics(lines) {
     el.lyricsContainer.innerHTML = '';
+    state.activeLyricIndex = -1;
+    state.activeLineNode = null;
     const frag = document.createDocumentFragment();
 
     lines.forEach((line, idx) => {
@@ -1818,6 +1835,7 @@
       div.dataset.time = line.time;
 
       if (line.isEnhanced && line.words) {
+        const wordSpans = [];
         line.words.forEach((w) => {
           const span = document.createElement('span');
           span.className = 'lyric-word';
@@ -1830,7 +1848,13 @@
             if (el.audio.paused) el.audio.play();
           });
           div.appendChild(span);
+          wordSpans.push({
+            el: span,
+            start: w.time,
+            end: w.endTime
+          });
         });
+        div._wordSpans = wordSpans;
       } else {
         div.textContent = line.text;
       }
@@ -1844,10 +1868,14 @@
     });
 
     el.lyricsContainer.appendChild(frag);
+    state.lyricLineNodes = Array.from(el.lyricsContainer.children);
   }
 
   function renderPlainLyrics(text) {
     el.lyricsContainer.innerHTML = '';
+    state.activeLyricIndex = -1;
+    state.activeLineNode = null;
+    state.lyricLineNodes = null;
     const p = document.createElement('div');
     p.className = 'lyric-plain-text';
     p.textContent = text;
@@ -1871,10 +1899,12 @@
       state.activeLyricIndex = foundIndex;
 
       // Update UI active line
-      const allLines = el.lyricsContainer.querySelectorAll('.lyric-line');
-      allLines.forEach((elem, idx) => {
+      const lineNodes = state.lyricLineNodes || el.lyricsContainer.querySelectorAll('.lyric-line');
+      for (let idx = 0; idx < lineNodes.length; idx++) {
+        const elem = lineNodes[idx];
         if (idx === foundIndex) {
           elem.classList.add('active');
+          state.activeLineNode = elem;
           // Auto scroll to center if user is not actively scrolling (contained inside lyricsWrapper)
           if (!state.isUserScrollingLyrics && el.lyricsWrapper) {
             const wrapperRect = el.lyricsWrapper.getBoundingClientRect();
@@ -1885,30 +1915,29 @@
           }
         } else {
           elem.classList.remove('active');
-          const words = elem.querySelectorAll('.lyric-word');
-          words.forEach(w => w.classList.remove('active', 'sung'));
+          if (elem._wordSpans) {
+            for (let w = 0; w < elem._wordSpans.length; w++) {
+              elem._wordSpans[w].el.classList.remove('active', 'sung');
+            }
+          }
         }
-      });
+      }
     }
 
-    // Update word-level karaoke for active line in Enhanced LRC
-    if (state.activeLyricIndex >= 0) {
-      const activeLineElem = el.lyricsContainer.querySelector(`.lyric-line[data-index="${state.activeLyricIndex}"]`);
-      if (activeLineElem && activeLineElem.classList.contains('enhanced')) {
-        const words = activeLineElem.querySelectorAll('.lyric-word');
-        words.forEach(span => {
-          const start = parseFloat(span.dataset.start);
-          const end = parseFloat(span.dataset.end);
-          if (currentTime >= end) {
-            span.classList.add('sung');
-            span.classList.remove('active');
-          } else if (currentTime >= start) {
-            span.classList.add('active');
-            span.classList.remove('sung');
-          } else {
-            span.classList.remove('active', 'sung');
-          }
-        });
+    // Update word-level karaoke for active line in Enhanced LRC using cached wordSpans
+    if (state.activeLineNode && state.activeLineNode._wordSpans) {
+      const words = state.activeLineNode._wordSpans;
+      for (let i = 0; i < words.length; i++) {
+        const item = words[i];
+        if (currentTime >= item.end) {
+          item.el.classList.add('sung');
+          item.el.classList.remove('active');
+        } else if (currentTime >= item.start) {
+          item.el.classList.add('active');
+          item.el.classList.remove('sung');
+        } else {
+          item.el.classList.remove('active', 'sung');
+        }
       }
     }
   }
@@ -1963,7 +1992,7 @@
           ` : (idx + 1)}
         </div>
         <div class="song-row-thumb-wrap">
-          <img class="song-row-thumb" src="${song.thumbnail || 'favicon.svg'}" alt="${escapeHtml(song.title)}" loading="lazy">
+          <img class="song-row-thumb" src="${escapeHtml(song.thumbnail || 'favicon.svg')}" alt="${escapeHtml(song.title)}" loading="lazy">
         </div>
         <div class="song-row-info">
           <div class="song-row-title">${escapeHtml(song.title)}</div>
@@ -2036,12 +2065,20 @@
       return;
     }
 
+    if (state.searchAbortController) {
+      try { state.searchAbortController.abort(); } catch (e) {}
+    }
+    state.searchAbortController = new AbortController();
+    const signal = state.searchAbortController.signal;
+
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=${state.searchMode}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=${state.searchMode}`, { signal });
+      if (signal.aborted) return;
       el.searchLoading.style.display = 'none';
 
       if (res.ok) {
         const data = await res.json();
+        if (signal.aborted) return;
         const results = data.results || [];
         if (results.length > 0) {
           renderSongRows(el.searchResultsList, results, (song, idx) => {
@@ -2054,6 +2091,7 @@
         el.searchEmpty.style.display = 'flex';
       }
     } catch (err) {
+      if (err.name === 'AbortError' || signal.aborted) return;
       el.searchLoading.style.display = 'none';
       el.searchEmpty.style.display = 'flex';
     }
@@ -2315,7 +2353,7 @@
       card.className = 'song-card';
       card.innerHTML = `
         <div class="song-card-thumb-wrap">
-          <img class="song-card-thumb" src="${song.thumbnail}" alt="${escapeHtml(song.title)}" loading="lazy">
+          <img class="song-card-thumb" src="${escapeHtml(song.thumbnail || 'favicon.svg')}" alt="${escapeHtml(song.title)}" loading="lazy">
           <button class="song-card-play-btn" title="Play">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </button>
@@ -2377,7 +2415,7 @@
           </div>
         </div>
         <div class="song-row-thumb-wrap">
-          <img class="song-row-thumb" src="${song.thumbnail || 'favicon.svg'}" alt="${escapeHtml(song.title)}" loading="lazy">
+          <img class="song-row-thumb" src="${escapeHtml(song.thumbnail || 'favicon.svg')}" alt="${escapeHtml(song.title)}" loading="lazy">
           <div class="song-row-play-overlay">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </div>
@@ -2921,6 +2959,10 @@
   let importAbortController = null;
 
   function openImportModal() {
+    if (IS_CLOUD_MODE) {
+      showToast('Playlist Import is only available in Local Mode via desktop server.');
+      return;
+    }
     el.modalImportPlaylist.style.display = 'flex';
     resetImportModal();
     el.inputImportName.focus();
@@ -3166,6 +3208,10 @@
   }
 
   async function handleStartImport() {
+    if (IS_CLOUD_MODE) {
+      showToast('Playlist Import is only available in Local Mode via desktop server.');
+      return;
+    }
     if (isImporting) return;
 
     const name = el.inputImportName.value.trim();
@@ -3350,20 +3396,37 @@
         playNextTrack();
       });
       navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime && el.audio.duration) {
+        if (details.seekTime != null && el.audio.duration) {
           el.audio.currentTime = details.seekTime;
+          updateMediaSessionPositionState();
         }
       });
       navigator.mediaSession.setActionHandler('seekbackward', (details) => {
         const skip = details.seekOffset || 5;
         el.audio.currentTime = Math.max(el.audio.currentTime - skip, 0);
+        updateMediaSessionPositionState();
       });
       navigator.mediaSession.setActionHandler('seekforward', (details) => {
         const skip = details.seekOffset || 5;
         if (el.audio.duration) {
           el.audio.currentTime = Math.min(el.audio.currentTime + skip, el.audio.duration);
+          updateMediaSessionPositionState();
         }
       });
+    }
+  }
+
+  function updateMediaSessionPositionState() {
+    if ('mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function') {
+      if (el.audio.duration && !isNaN(el.audio.duration) && isFinite(el.audio.duration)) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: Math.max(0, el.audio.duration),
+            playbackRate: el.audio.playbackRate || 1,
+            position: Math.max(0, Math.min(el.audio.currentTime || 0, el.audio.duration))
+          });
+        } catch (e) {}
+      }
     }
   }
 
@@ -3508,9 +3571,15 @@
 
     setTimeout(() => {
       toast.classList.add('fade-out');
-      toast.addEventListener('animationend', () => {
-        toast.remove();
-      });
+      let removed = false;
+      const removeToast = () => {
+        if (!removed) {
+          removed = true;
+          toast.remove();
+        }
+      };
+      toast.addEventListener('animationend', removeToast, { once: true });
+      setTimeout(removeToast, 400); // Fallback for reduced motion
     }, duration);
   }
 
