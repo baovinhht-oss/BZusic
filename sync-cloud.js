@@ -185,6 +185,37 @@ function downloadAudioYtDlp(videoId, outputPath) {
   });
 }
 
+// Helper: Standardize lyrics text, clean formatting and ensure consistent '^' translation separation
+function sanitizeLyrics(lrcText) {
+  if (!lrcText || typeof lrcText !== 'string') return lrcText;
+  const lines = lrcText.split(/\r?\n/);
+  const cleaned = lines.map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return '';
+    const tagMatch = trimmed.match(/^(\[\d{1,2}:\d{2}(?:\.\d{1,3})?\])(.*)$/);
+    if (tagMatch) {
+      const tag = tagMatch[1];
+      const content = tagMatch[2].trim();
+      if (content.includes('^')) {
+        const parts = content.split('^');
+        const main = parts[0].trim();
+        const sub = parts.slice(1).join(' ').replace(/<[^>]*>/g, '').trim();
+        return sub ? `${tag} ${main}^${sub}` : `${tag} ${main}`;
+      }
+      return `${tag} ${content}`;
+    } else {
+      if (trimmed.includes('^')) {
+        const parts = trimmed.split('^');
+        const main = parts[0].trim();
+        const sub = parts.slice(1).join(' ').replace(/<[^>]*>/g, '').trim();
+        return sub ? `${main}^${sub}` : main;
+      }
+      return trimmed;
+    }
+  });
+  return cleaned.join('\n');
+}
+
 // Helper: Fetch lyrics from LRCLIB
 async function fetchLyricsLrcLib(title, artist) {
   try {
@@ -209,10 +240,10 @@ async function fetchLyricsLrcLib(title, artist) {
     if (res.ok) {
       const data = await res.json();
       if (data.syncedLyrics && data.syncedLyrics.trim()) {
-        return data.syncedLyrics.trim();
+        return sanitizeLyrics(data.syncedLyrics.trim());
       }
       if (data.plainLyrics && data.plainLyrics.trim()) {
-        return data.plainLyrics.trim();
+        return sanitizeLyrics(data.plainLyrics.trim());
       }
     }
 
@@ -232,7 +263,8 @@ async function fetchLyricsLrcLib(title, artist) {
       if (Array.isArray(list) && list.length > 0) {
         const match = list.find(item => item.syncedLyrics || item.plainLyrics);
         if (match) {
-          return (match.syncedLyrics && match.syncedLyrics.trim()) || (match.plainLyrics && match.plainLyrics.trim()) || null;
+          const raw = (match.syncedLyrics && match.syncedLyrics.trim()) || (match.plainLyrics && match.plainLyrics.trim()) || null;
+          return sanitizeLyrics(raw);
         }
       }
     }
@@ -367,9 +399,10 @@ async function main() {
       try {
         const lrc = await fetchLyricsLrcLib(song.title, song.artist);
         if (lrc) {
+          const cleanLrc = sanitizeLyrics(lrc);
           const { error: lrcErr } = await supabase.storage
             .from(SUPABASE_BUCKET)
-            .upload(`lyrics/${lyricsFileName}`, Buffer.from(lrc, 'utf-8'), {
+            .upload(`lyrics/${lyricsFileName}`, Buffer.from(cleanLrc, 'utf-8'), {
               contentType: 'text/plain; charset=utf-8',
               upsert: true
             });

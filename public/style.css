@@ -45,6 +45,11 @@
   padding: 0;
 }
 
+html, body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   font-family: var(--font-family);
   background-color: var(--bg-black);
@@ -52,6 +57,29 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
+}
+
+button, a, input[type="range"], .nav-item, .song-row {
+  touch-action: manipulation;
+}
+
+/* Mobile Sidebar Backdrop */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 95;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-normal), visibility var(--transition-normal);
+  pointer-events: none;
+}
+.sidebar-backdrop.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* Custom Scrollbars */
@@ -336,14 +364,16 @@ body {
 
 /* Top Bar */
 .top-bar {
-  height: var(--topbar-height);
-  padding: 0 28px;
+  min-height: calc(var(--topbar-height) + env(safe-area-inset-top));
+  height: auto;
+  padding: env(safe-area-inset-top) 28px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   background: rgba(3, 3, 3, 0.85);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   position: sticky;
   top: 0;
   z-index: 30;
@@ -373,10 +403,10 @@ body {
 .search-input {
   width: 100%;
   padding: 10px 38px 10px 42px;
-  background-color: #1a1a1a;
-  border: 1px solid var(--border-subtle);
+  background-color: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-pill);
-  color: var(--text-main);
+  color: #ffffff;
   font-family: inherit;
   font-size: 0.92rem;
   outline: none;
@@ -384,13 +414,13 @@ body {
 }
 
 .search-input::placeholder {
-  color: var(--text-dim);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .search-input:focus {
-  background-color: #222222;
-  border-color: #4a4a4a;
-  box-shadow: 0 0 0 3px rgba(255, 46, 46, 0.15);
+  background-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 0 3px rgba(255, 46, 46, 0.25);
 }
 
 .search-input:focus + .search-icon {
@@ -1444,10 +1474,13 @@ body {
    Now Playing Full Screen Overlay (2 Columns: Cover + Tabs)
    ========================================================================== */
 .now-playing-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   background-color: var(--bg-black);
-  z-index: 50;
+  z-index: 80;
   display: flex;
   flex-direction: column;
   transform: translateY(100%);
@@ -1562,6 +1595,7 @@ body {
   justify-content: center;
   text-align: center;
   max-width: 440px;
+  min-width: 0;
   margin: 0 auto;
   width: 100%;
 }
@@ -1654,6 +1688,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   background: rgba(18, 18, 18, 0.6);
   backdrop-filter: blur(24px);
@@ -1694,12 +1730,16 @@ body {
   flex: 1;
   overflow: hidden;
   position: relative;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tab-pane {
   display: none;
   height: 100%;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tab-pane.active {
@@ -1786,6 +1826,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 /* Tab 2: Synced Lyrics - Apple Music Style */
 .lyrics-wrapper {
   height: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow-y: auto;
   padding: 60px 40px;
   position: relative;
@@ -1803,6 +1845,8 @@ input:checked + .slider:before { transform: translateX(20px); }
   flex-direction: column;
   gap: 26px;
   padding-bottom: 220px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Inactive lyrics lines: blur and lower opacity */
@@ -1819,6 +1863,18 @@ input:checked + .slider:before { transform: translateX(20px); }
   border-radius: var(--radius-md);
   user-select: none;
   transform-origin: left center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.lyric-main {
+  width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* When hovering over the lyrics container, clear the blur for easier reading and clicking */
@@ -1842,7 +1898,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 /* Enhanced LRC: Karaoke Word Spans */
-.lyric-line.enhanced {
+.lyric-line.enhanced .lyric-main {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -1876,13 +1932,45 @@ input:checked + .slider:before { transform: translateX(20px); }
   transform: scale(1.05);
 }
 
+/* Secondary Translation Sub-line */
+.lyric-translation {
+  font-size: 0.85em;
+  font-weight: 500;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.72);
+  opacity: 0.72;
+  margin-top: 4px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+  letter-spacing: normal;
+  transition: opacity 0.3s ease, color 0.3s ease;
+}
+
+.lyric-line.active .lyric-translation {
+  color: rgba(255, 255, 255, 0.9);
+  opacity: 0.85;
+}
+
 .lyric-plain-text {
   font-size: 1.25rem;
   line-height: 1.9;
   color: var(--text-secondary);
-  white-space: pre-wrap;
   font-weight: 500;
   padding: 20px 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.lyric-plain-line {
+  margin-bottom: 14px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.lyric-plain-line .lyric-translation {
+  margin-top: 2px;
 }
 
 /* ==========================================================================
@@ -2632,11 +2720,28 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 @media (max-width: 768px) {
+  /* Prevent Safari Auto-Zoom on form focus */
+  .search-input,
+  .playlist-filter-input,
+  .form-group input,
+  .form-group textarea,
+  .custom-select {
+    font-size: 16px !important;
+  }
+
+  /* Top Bar with Safe Area Insets */
+  .top-bar {
+    padding: env(safe-area-inset-top) 14px 0;
+    gap: 10px;
+  }
+
+  /* Sidebar Drawer with Safe Area */
   .sidebar {
     position: fixed;
     top: 0;
     left: -100%;
     bottom: 0;
+    padding-top: calc(16px + env(safe-area-inset-top));
     padding-bottom: calc(var(--player-height) + env(safe-area-inset-bottom) + 16px);
     width: 80%;
     max-width: 300px;
@@ -2651,8 +2756,46 @@ input:checked + .slider:before { transform: translateX(20px); }
     display: inline-flex;
   }
 
+  /* Views Wrapper with Bottom Insets */
   .views-wrapper {
-    padding: 16px 16px calc(var(--player-height) + env(safe-area-inset-bottom) + 36px);
+    padding: 16px 14px calc(var(--player-height) + env(safe-area-inset-bottom) + 40px);
+  }
+
+  /* Home Hero Card: Compact & Non-wrapping Button */
+  .home-hero-card {
+    padding: 22px 18px;
+    margin-bottom: 24px;
+  }
+  .hero-title {
+    font-size: 1.5rem;
+  }
+  .hero-desc {
+    font-size: 0.9rem;
+    margin-bottom: 18px;
+  }
+  .hero-actions {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .hero-actions .btn {
+    white-space: nowrap;
+    padding: 10px 16px;
+    font-size: 0.86rem;
+  }
+
+  /* Made for You / Explore 2-Column Grid on iPhone */
+  .song-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .song-card {
+    padding: 10px;
+  }
+  .song-card-title {
+    font-size: 0.88rem;
+  }
+  .song-card-artist {
+    font-size: 0.76rem;
   }
 
   /* Playlist Hero & Toolbar on Mobile */
@@ -2680,9 +2823,10 @@ input:checked + .slider:before { transform: translateX(20px); }
     justify-content: space-between;
   }
 
+  /* Bottom Player Bar with Safe Area Bottom */
   .player-bar {
     grid-template-columns: 1fr auto;
-    padding: 0 14px calc(env(safe-area-inset-bottom) + 6px);
+    padding: 8px 14px calc(env(safe-area-inset-bottom) + 10px);
     height: auto;
     min-height: var(--player-height);
   }
@@ -2724,18 +2868,79 @@ input:checked + .slider:before { transform: translateX(20px); }
     transform: scale(0.92);
   }
 
+  /* Now Playing Overlay on Mobile (covers full screen including bottom bar) */
+  .now-playing-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .now-playing-topbar {
+    min-height: calc(var(--topbar-height) + env(safe-area-inset-top));
+    height: auto;
+    padding: env(safe-area-inset-top) 16px 0;
+  }
+
   .now-playing-content {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     overflow-y: auto;
-    padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
-    gap: 20px;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 16px calc(24px + env(safe-area-inset-bottom));
+    gap: 18px;
   }
+
+  .np-left-column {
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
   .np-cover-wrapper {
-    max-width: 250px;
-    margin-bottom: 16px;
+    max-width: 210px;
+    margin: 0 auto 12px;
   }
+
   .np-right-column {
-    height: 440px;
+    min-height: 360px;
+    height: auto;
+    flex: 1 0 auto;
+    width: 100%;
+  }
+
+  /* Lyrics on Mobile: Horizontal Overflow Fix & No Scale */
+  .lyrics-wrapper {
+    padding: 24px 16px;
+    overflow-x: hidden;
+    height: auto;
+    max-height: 55vh;
+  }
+
+  .lyrics-container {
+    gap: 18px;
+    padding-bottom: 120px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .lyric-line {
+    font-size: 1.25rem;
+    line-height: 1.45;
+    padding: 6px 8px;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+  }
+
+  .lyric-line.active {
+    transform: none !important;
+    text-shadow: 0 0 18px rgba(255, 255, 255, 0.45);
+    font-weight: 800;
+    color: #ffffff;
   }
 
   /* Dedicated Mobile Controls inside Now Playing */
@@ -2794,5 +2999,15 @@ input:checked + .slider:before { transform: translateX(20px); }
   .np-mobile-playback-btns .btn-play-pause-prominent {
     width: 52px;
     height: 52px;
+  }
+
+  /* Modals on Mobile: Touch Scrolling & Max Height */
+  .modal-card {
+    max-height: 85vh;
+    max-height: 85dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 92%;
+    margin: auto;
   }
 }

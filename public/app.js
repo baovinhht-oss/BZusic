@@ -85,6 +85,23 @@
       renderSidebarPlaylists();
       renderHomeFeatured();
     });
+
+    // iOS Safari / Mobile background resume & media state resync
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && el.audio) {
+        updatePlayPauseButtonUI(!el.audio.paused);
+        updateMediaSessionPositionState();
+      }
+    });
+
+    // Register Service Worker for PWA App Shell caching
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+          console.warn('[SW] Registration failed:', err);
+        });
+      });
+    }
   });
 
   function cacheDomElements() {
@@ -93,6 +110,7 @@
 
     // Sidebar & Navigation
     el.sidebar = document.getElementById('sidebar');
+    el.sidebarBackdrop = document.getElementById('sidebar-backdrop');
     el.navHome = document.getElementById('nav-home');
     el.navLiked = document.getElementById('nav-liked');
     el.navHistory = document.getElementById('nav-history');
@@ -367,8 +385,19 @@
     });
 
     // Mobile Sidebar
-    el.mobileSidebarToggle.addEventListener('click', () => el.sidebar.classList.add('mobile-open'));
-    el.mobileSidebarClose.addEventListener('click', () => el.sidebar.classList.remove('mobile-open'));
+    function openSidebar() {
+      if (el.sidebar) el.sidebar.classList.add('mobile-open');
+      if (el.sidebarBackdrop) el.sidebarBackdrop.classList.add('active');
+    }
+
+    function closeSidebar() {
+      if (el.sidebar) el.sidebar.classList.remove('mobile-open');
+      if (el.sidebarBackdrop) el.sidebarBackdrop.classList.remove('active');
+    }
+
+    if (el.mobileSidebarToggle) el.mobileSidebarToggle.addEventListener('click', openSidebar);
+    if (el.mobileSidebarClose) el.mobileSidebarClose.addEventListener('click', closeSidebar);
+    if (el.sidebarBackdrop) el.sidebarBackdrop.addEventListener('click', closeSidebar);
 
     // Search with 400ms debounce
     let searchDebounce = null;
@@ -442,6 +471,7 @@
     el.audio.addEventListener('pause', onAudioPause);
     el.audio.addEventListener('ended', onAudioEnded);
     el.audio.addEventListener('error', onAudioError);
+    el.audio.addEventListener('loadedmetadata', updateMediaSessionPositionState);
     el.audio.addEventListener('waiting', () => {
       // Buffer wait
     });
@@ -537,6 +567,42 @@
         e.preventDefault();
         e.stopPropagation();
         closeNowPlaying();
+      }
+    });
+
+    // Touch swipe down on Now Playing header and album cover to minimize on mobile
+    let touchStartY = 0;
+    let touchStartX = 0;
+    let isTrackingSwipe = false;
+
+    const onSwipeStart = (e) => {
+      if (e.touches && e.touches.length === 1) {
+        touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+        isTrackingSwipe = true;
+      }
+    };
+
+    const onSwipeEnd = (e) => {
+      if (!isTrackingSwipe) return;
+      isTrackingSwipe = false;
+      if (e.changedTouches && e.changedTouches.length === 1) {
+        const deltaY = e.changedTouches[0].clientY - touchStartY;
+        const deltaX = Math.abs(e.changedTouches[0].clientX - touchStartX);
+        if (deltaY > 70 && deltaY > deltaX * 1.5) {
+          closeNowPlaying();
+        }
+      }
+    };
+
+    const swipeTargets = [
+      document.querySelector('.now-playing-topbar'),
+      document.querySelector('.np-cover-wrapper')
+    ];
+    swipeTargets.forEach(target => {
+      if (target) {
+        target.addEventListener('touchstart', onSwipeStart, { passive: true });
+        target.addEventListener('touchend', onSwipeEnd, { passive: true });
       }
     });
 
@@ -1477,6 +1543,7 @@
 
     if (el.audio.duration) {
       el.audio.currentTime = (val / 100) * el.audio.duration;
+      updateMediaSessionPositionState();
     }
   }
 
@@ -1785,10 +1852,19 @@
         content = raw.replace(lineTimeRegex, '').trim();
       }
 
-      // Check for Enhanced word tokens: <mm:ss.xx>word
+      // Check if line contains '^' for translation / sub-lyric
+      let mainContent = content;
+      let translation = '';
+      if (content.includes('^')) {
+        const caretIndex = content.indexOf('^');
+        mainContent = content.slice(0, caretIndex).trim();
+        translation = content.slice(caretIndex + 1).replace(/<[^>]*>/g, '').replace(/\[[^\]]*\]/g, '').trim();
+      }
+
+      // Check for Enhanced word tokens: <mm:ss.xx>word on mainContent
       const words = [];
       let match;
-      while ((match = wordTimeRegex.exec(content)) !== null) {
+      while ((match = wordTimeRegex.exec(mainContent)) !== null) {
         const wTime = parseTimeTag(match[1]);
         const wText = match[2];
         if (wTime !== null && wText) {
@@ -1797,8 +1873,8 @@
       }
 
       // Completely remove all <...> and [...] tags so they never appear on screen
-      const cleanText = content.replace(/<[^>]*>/g, '').replace(/\[[^\]]*\]/g, '').trim();
-      if (!cleanText && words.length === 0) continue;
+      const cleanText = mainContent.replace(/<[^>]*>/g, '').replace(/\[[^\]]*\]/g, '').trim();
+      if (!cleanText && words.length === 0 && !translation) continue;
 
       if (lineTime === null && words.length > 0) {
         lineTime = words[0].time;
@@ -1814,6 +1890,7 @@
       lines.push({
         time: lineTime,
         text: cleanText,
+        translation: translation || null,
         words: words.length > 0 ? words : null,
         isEnhanced: words.length > 0
       });
@@ -1834,6 +1911,9 @@
       div.dataset.index = idx;
       div.dataset.time = line.time;
 
+      const mainDiv = document.createElement('div');
+      mainDiv.className = 'lyric-main';
+
       if (line.isEnhanced && line.words) {
         const wordSpans = [];
         line.words.forEach((w) => {
@@ -1847,7 +1927,7 @@
             el.audio.currentTime = w.time;
             if (el.audio.paused) el.audio.play();
           });
-          div.appendChild(span);
+          mainDiv.appendChild(span);
           wordSpans.push({
             el: span,
             start: w.time,
@@ -1856,7 +1936,15 @@
         });
         div._wordSpans = wordSpans;
       } else {
-        div.textContent = line.text;
+        mainDiv.textContent = line.text;
+      }
+      div.appendChild(mainDiv);
+
+      if (line.translation) {
+        const transDiv = document.createElement('div');
+        transDiv.className = 'lyric-translation';
+        transDiv.textContent = line.translation;
+        div.appendChild(transDiv);
       }
 
       div.addEventListener('click', () => {
@@ -1876,10 +1964,45 @@
     state.activeLyricIndex = -1;
     state.activeLineNode = null;
     state.lyricLineNodes = null;
-    const p = document.createElement('div');
-    p.className = 'lyric-plain-text';
-    p.textContent = text;
-    el.lyricsContainer.appendChild(p);
+
+    const container = document.createElement('div');
+    container.className = 'lyric-plain-text';
+
+    const rawLines = (text || '').split(/\r?\n/);
+    rawLines.forEach((raw) => {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        container.appendChild(document.createElement('br'));
+        return;
+      }
+
+      const lineDiv = document.createElement('div');
+      lineDiv.className = 'lyric-plain-line';
+
+      if (trimmed.includes('^')) {
+        const caretIdx = trimmed.indexOf('^');
+        const main = trimmed.slice(0, caretIdx).trim();
+        const trans = trimmed.slice(caretIdx + 1).trim();
+
+        const mainDiv = document.createElement('div');
+        mainDiv.className = 'lyric-main';
+        mainDiv.textContent = main;
+        lineDiv.appendChild(mainDiv);
+
+        if (trans) {
+          const transDiv = document.createElement('div');
+          transDiv.className = 'lyric-translation';
+          transDiv.textContent = trans;
+          lineDiv.appendChild(transDiv);
+        }
+      } else {
+        lineDiv.textContent = trimmed;
+      }
+
+      container.appendChild(lineDiv);
+    });
+
+    el.lyricsContainer.appendChild(container);
   }
 
   function syncLyricsTime(currentTime) {
@@ -2127,7 +2250,7 @@
     }
 
     // Close mobile drawer if open
-    el.sidebar.classList.remove('mobile-open');
+    closeSidebar();
 
     // Render specific view data
     if (viewName === 'liked') {
@@ -3437,7 +3560,9 @@
         artist: song.artist,
         album: song.album || 'BZusic',
         artwork: [
-          { src: song.thumbnail || 'favicon.svg', sizes: '512x512', type: 'image/jpeg' }
+          { src: song.thumbnail || './icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: './icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: './icon-512.png', sizes: '512x512', type: 'image/png' }
         ]
       });
     }

@@ -727,6 +727,37 @@ app.get('/api/upnext/:videoId', async (req, res) => {
   }
 });
 
+// Helper: Standardize lyrics text, clean formatting and ensure consistent '^' translation separation
+function sanitizeLyrics(lrcText) {
+  if (!lrcText || typeof lrcText !== 'string') return lrcText;
+  const lines = lrcText.split(/\r?\n/);
+  const cleaned = lines.map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return '';
+    const tagMatch = trimmed.match(/^(\[\d{1,2}:\d{2}(?:\.\d{1,3})?\])(.*)$/);
+    if (tagMatch) {
+      const tag = tagMatch[1];
+      const content = tagMatch[2].trim();
+      if (content.includes('^')) {
+        const parts = content.split('^');
+        const main = parts[0].trim();
+        const sub = parts.slice(1).join(' ').replace(/<[^>]*>/g, '').trim();
+        return sub ? `${tag} ${main}^${sub}` : `${tag} ${main}`;
+      }
+      return `${tag} ${content}`;
+    } else {
+      if (trimmed.includes('^')) {
+        const parts = trimmed.split('^');
+        const main = parts[0].trim();
+        const sub = parts.slice(1).join(' ').replace(/<[^>]*>/g, '').trim();
+        return sub ? `${main}^${sub}` : main;
+      }
+      return trimmed;
+    }
+  });
+  return cleaned.join('\n');
+}
+
 // 4. GET /api/lyrics?title=...&artist=...
 app.get('/api/lyrics', async (req, res) => {
   const title = (req.query.title || '').trim();
@@ -756,8 +787,8 @@ app.get('/api/lyrics', async (req, res) => {
       const data = await getRes.json();
       if (data.syncedLyrics || data.plainLyrics) {
         return res.json({
-          syncedLyrics: data.syncedLyrics || null,
-          plainLyrics: data.plainLyrics || null
+          syncedLyrics: sanitizeLyrics(data.syncedLyrics) || null,
+          plainLyrics: sanitizeLyrics(data.plainLyrics) || null
         });
       }
     }
@@ -777,8 +808,8 @@ app.get('/api/lyrics', async (req, res) => {
         const syncedItem = list.find(item => item.syncedLyrics);
         if (syncedItem) {
           return res.json({
-            syncedLyrics: syncedItem.syncedLyrics,
-            plainLyrics: syncedItem.plainLyrics || null
+            syncedLyrics: sanitizeLyrics(syncedItem.syncedLyrics),
+            plainLyrics: sanitizeLyrics(syncedItem.plainLyrics) || null
           });
         }
 
@@ -786,7 +817,7 @@ app.get('/api/lyrics', async (req, res) => {
         if (plainItem) {
           return res.json({
             syncedLyrics: null,
-            plainLyrics: plainItem.plainLyrics
+            plainLyrics: sanitizeLyrics(plainItem.plainLyrics)
           });
         }
       }
